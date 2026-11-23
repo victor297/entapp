@@ -1,0 +1,57 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useOperationListQuery, useOperationRecordQuery, useOperationMutationMutation, useProviderInvoicesQuery } from "@/redux/services/operationsApi";
+import { filterRecords, money, paymentStatus, type ApiRecord } from "@/lib/operations";
+import PaymentModal from "@/components/ui/paymentModal";
+import { PaymentReason } from "@/redux/services/book";
+import { Workspace, ApiError, Message, Pager, buttonClass, fieldClass } from "./Workspace";
+import RecordFilters, { emptyFilters } from "./RecordFilters";
+import { invoiceRemaining, isPaymentConfirmed, isInvoicePayable } from "@/lib/payment-status";
+
+export function InvoiceCheckout({ invoiceId }: { invoiceId: string }) {
+  const { userId, user } = useCurrentUser(); const [open, setOpen] = useState(false); const [confirmWallet, setConfirmWallet] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState<unknown>();
+  const invoice = useOperationRecordQuery(`/invoice/${encodeURIComponent(invoiceId)}`, { skip: !userId || !user || !invoiceId });
+  const wallet = useOperationRecordQuery("/wallet", { skip: !userId || !user });
+  const transactions = useOperationListQuery({ resource: "/wallet/transactions" }, { skip: !userId || !user });
+  const [mutate, action] = useOperationMutationMutation(); const row = invoice.data;
+  const own = Boolean(row && row.userId === userId); const remaining = row ? invoiceRemaining(row, transactions.data || []) : 0;
+  const walletEligible = own && row && isInvoicePayable(row) && user?.userType === "CUSTOMER" && row.bookingId && wallet.data && !wallet.error && !wallet.isFetching && wallet.data.currency === row.currency && !transactions.error && !transactions.isFetching && Number(wallet.data.balance) >= remaining && remaining > 0;
+  async function verify() { setOpen(false); setError(undefined); setMessage(""); const result = await invoice.refetch(); if (result.error) { setError(result.error); return; } if (isPaymentConfirmed(result.data, userId)) setMessage("Payment confirmed by the server."); else setMessage("Payment has not been confirmed yet. Refresh the invoice in a moment."); }
+  async function payWallet() { setError(undefined); setMessage(""); try { await mutate({ url: "/wallet/pay-invoice", method: "POST", body: { userId, invoiceId } }).unwrap(); setConfirmWallet(false); await verify(); wallet.refetch(); transactions.refetch(); } catch (caught) { setError(caught); } }
+  return <section className="my-6 rounded-xl border bg-white p-6"><h2 className="text-xl font-semibold">Invoice payment</h2>{invoice.isFetching && <Message>Loading invoice…</Message>}{invoice.error && <ApiError error={invoice.error} retry={invoice.refetch} />}{row && !own && <Message error>This invoice does not belong to your account.</Message>}{own && row && <>
+    <p className="mt-3">Reference: {row.reference || row.id}</p><p>Status: <strong>{paymentStatus(row.status)}</strong></p><p>Invoice amount: {money(row.amountDue, row.currency)}</p>{transactions.data && <p>Outstanding on this invoice: <strong>{money(remaining, row.currency)}</strong></p>}{row.serviceChargeAmount !== undefined && row.serviceChargeAmount !== null && <p>Service fee included: {money(row.serviceChargeAmount, row.currency)}</p>}
+    <ul className="my-4 space-y-2">{Array.isArray(row.items) && row.items.map((item: { item: string; amount: number }, i: number) => <li className="flex justify-between gap-4" key={i}><span>{item.item}</span><span>{money(item.amount, row.currency)}</span></li>)}</ul>
+    {row.status === "PARTIALLY_PAID" && transactions.error && <Message error>We cannot verify the remaining amount right now. Retry before making another payment.</Message>}
+    {isInvoicePayable(row) && <div className="mt-4 flex flex-wrap gap-3"><button className={buttonClass} disabled={row.status === "PARTIALLY_PAID" || action.isLoading || invoice.isFetching || transactions.isFetching || Boolean(transactions.error) || remaining !== Number(row.amountDue) || remaining <= 0} onClick={() => setOpen(true)}>Pay securely / retry payment</button>{walletEligible && <button className={buttonClass} disabled={action.isLoading || invoice.isFetching} onClick={() => setConfirmWallet(true)}>Pay {money(remaining, row.currency)} from wallet</button>}<button className="text-blue-800 underline" onClick={verify}>Refresh payment status</button></div>}
+    {row.status === "PARTIALLY_PAID" && <p className="mt-3 text-sm text-gray-600">Card top-ups for partially paid invoices need a backend remaining-amount checkout endpoint. You can use an eligible wallet balance.</p>}
+    {message && <Message>{message}</Message>}{Boolean(error) && <ApiError error={error} />}
+    {confirmWallet && <div role="dialog" aria-modal="true" aria-labelledby="wallet-confirm" className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-w-md rounded-xl bg-white p-6"><h3 id="wallet-confirm" className="text-xl font-semibold">Confirm wallet payment</h3><p className="my-4">Pay {money(remaining, row.currency)} toward this invoice from your wallet?</p><div className="flex gap-4"><button disabled={action.isLoading} className={buttonClass} onClick={payWallet}>Confirm payment</button><button disabled={action.isLoading} onClick={() => setConfirmWallet(false)}>Cancel</button></div></div></div>}
+    {open && user && <PaymentModal isOpen={open} onClose={() => setOpen(false)} amountDue={Number(row.amountDue)} invoiceId={row.id} userId={userId} userEmail={user.email} paymentReason={row.subscriptionId ? PaymentReason.SUBSCRIPTION : PaymentReason.SERVICEREQUEST} onPaymentSuccess={verify} onPaymentError={setMessage} />}
+  </>}</section>;
+}
+export default function FinancePage({ role, mode = "invoices", invoiceId }: { role: "admin" | "provider" | "customer"; mode?: "wallet" | "ledger" | "payments" | "invoices"; invoiceId?: string }) {
+  const { userId, user } = useCurrentUser(); const [filters, setFilters] = useState(emptyFilters); const [page, setPage] = useState(1); const [selectedInvoice, setSelectedInvoice] = useState(invoiceId || "");
+  const ready = Boolean(userId && user?.userType === (role === "admin" ? "ADMIN" : role === "provider" ? "SERVICE_PROVIDER" : "CUSTOMER"));
+  const resource = mode === "wallet" ? "/wallet/transactions" : mode === "ledger" ? "/wallet/platform-transactions" : mode === "payments" ? "/payment" : "/invoice";
+  const list = useOperationListQuery({ resource, params: role !== "admin" && mode === "invoices" ? { userId } : {} }, { skip: !ready || (role === "provider" && mode === "invoices") || (mode === "payments" && role !== "admin") });
+  const provider = useProviderInvoicesQuery(userId, { skip: !ready || role !== "provider" || mode !== "invoices" });
+  const wallet = useOperationRecordQuery("/wallet", { skip: !ready || mode !== "wallet" }); const result = role === "provider" && mode === "invoices" ? provider : list;
+  const rows = filterRecords(result.data || [], filters);
+  const title = mode === "wallet" ? "Wallet and earnings" : mode === "ledger" ? "Platform revenue ledger" : mode === "payments" ? "Payments" : "Invoices";
+  return <Workspace role={role} title={title}>
+    <nav className="mb-5 flex flex-wrap gap-4 text-blue-800 underline">{role === "admin" ? <><Link href="/admin/payments">Payments</Link><Link href="/admin/invoices">Invoices</Link><Link href="/admin/revenue">Revenue ledger</Link><Link href="/admin/disputes">Disputes</Link></> : <><Link href={`/${role}/invoices`}>Invoices</Link><Link href={`/${role}/wallet`}>Wallet</Link>{role === "customer" && <Link href="/customer/disputes">Disputes</Link>}<Link href={`/${role}/refunds`}>Refunds</Link></>}</nav>
+    {mode === "wallet" && <>{wallet.isFetching ? <Message>Loading wallet…</Message> : wallet.error ? <ApiError error={wallet.error} retry={wallet.refetch} /> : wallet.data ? <div className="mb-5 rounded-xl border bg-white p-6"><p className="text-sm text-gray-600">Available wallet balance</p><strong className="text-3xl">{money(wallet.data.balance, wallet.data.currency)}</strong><p className="mt-3 text-sm text-gray-600">Held funds are not returned separately by the wallet service.</p>{role === "provider" && <Link href="/provider/withdrawals" className="mt-4 inline-block text-blue-800 underline">Withdrawal availability</Link>}</div> : <Message>No wallet was returned for this account.</Message>}</>}
+    {selectedInvoice && role !== "admin" && <InvoiceCheckout key={selectedInvoice} invoiceId={selectedInvoice} />}
+    <RecordFilters filters={filters} rows={result.data || []} listing={false} statuses={[...new Set((result.data || []).map(row => String(row.status || row.type || "")))].filter(Boolean)} onChange={next => { setFilters(next); setPage(1); }} />
+    {result.isFetching && <Message>Loading records…</Message>}{result.error ? <ApiError error={result.error} retry={result.refetch} /> : <>
+      {!result.isFetching && !rows.length && <Message>No records match these filters.</Message>}
+      <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-left text-sm"><thead className="bg-gray-100"><tr>{["Reference", "Date", "Status / type", "Amount", "Description", ""].map(text => <th className="p-4" key={text}>{text}</th>)}</tr></thead><tbody>{rows.slice((page - 1) * 12, page * 12).map(row => <tr className="border-t" key={row.id}><td className="p-4">{row.reference || row.id}</td><td className="p-4">{new Date(row.createdAt).toLocaleDateString("en-GB")}</td><td className="p-4">{mode === "invoices" ? paymentStatus(row.status) : row.status || row.type}</td><td className="p-4">{money(row.amountDue ?? row.amount, row.currency || wallet.data?.currency)}</td><td className="p-4">{row.description || row.reason || row.note || row.bookingId || "—"}</td><td className="p-4">{mode === "invoices" && role !== "admin" && row.userId === userId ? <button className="text-blue-800 underline" onClick={() => setSelectedInvoice(row.id)}>View / pay</button> : mode === "invoices" && role === "admin" ? <InvoiceEditor invoice={row} /> : null}</td></tr>)}</tbody></table></div><Pager page={page} count={rows.length} onChange={setPage} />
+    </>}
+  </Workspace>;
+}
+function InvoiceEditor({ invoice }: { invoice: ApiRecord }) {
+  const [edit, setEdit] = useState(false); const [note, setNote] = useState(invoice.note || ""); const [date, setDate] = useState(String(invoice.dueDate || "").slice(0, 10)); const [error, setError] = useState<unknown>(); const [mutate, action] = useOperationMutationMutation();
+  return <><button className="text-blue-800 underline" onClick={() => setEdit(!edit)}>Edit invoice</button>{edit && <form className="mt-3 min-w-56 space-y-3" onSubmit={async event => { event.preventDefault(); try { await mutate({ url: `/invoice/${invoice.id}`, method: "PATCH", body: { note, dueDate: new Date(`${date}T12:00:00Z`).toISOString() } }).unwrap(); setEdit(false); } catch (caught) { setError(caught); } }}><label>Due date<input className={fieldClass} type="date" required value={date} onChange={e => setDate(e.target.value)} /></label><label>Note<textarea className={fieldClass} value={note} onChange={e => setNote(e.target.value)} /></label><button className={buttonClass} disabled={action.isLoading}>Save</button>{Boolean(error) && <ApiError error={error} />}</form>}</>;
+}

@@ -1,0 +1,505 @@
+"use client";
+
+import { useState } from "react";
+import { Eye, EyeOff, Lock, Mail, User, Briefcase } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  useCreateUserMutation,
+  UserType,
+  ServiceType,
+  CreateCustomerRequest,
+  CreateServiceProviderRequest,
+} from "../../../redux/services/authApi";
+import Notification from "../../../components/ui/Notification";
+import { getApiError } from "../../../hooks/getApiError";
+
+const schema = z
+  .discriminatedUnion("userType", [
+    z.object({
+      userType: z.literal(UserType.CUSTOMER),
+      firstName: z.string().min(1, "First name is required"),
+      lastName: z.string().min(1, "Last name is required"),
+      email: z.string().email("Invalid email address"),
+      password: z
+        .string()
+        .min(10, "Must be at least 10 characters")
+        .regex(/[A-Z]/, "Must contain at least 1 uppercase letter")
+        .regex(/[0-9]/, "Must contain at least 1 number")
+        .regex(
+          /[!@#$%^&*(),.?":{}|<>]/,
+          "Must contain at least 1 special character"
+        ),
+      confirmPassword: z.string().min(1, "Please confirm your password"),
+    }),
+    z.object({
+      userType: z.literal(UserType.SERVICE_PROVIDER),
+      firstName: z.string().min(1, "First name is required"),
+      lastName: z.string().min(1, "Last name is required"),
+      email: z.string().email("Invalid email address"),
+      businessName: z
+        .string()
+        .min(1, "Business name is required for service providers"),
+      serviceType: z.enum(
+        [ServiceType.EVENTCENTERS, ServiceType.CATERING, ServiceType.ALL],
+        {
+          errorMap: () => ({
+            message: "Service type is required for service providers",
+          }),
+        }
+      ),
+      password: z
+        .string()
+        .min(10, "Must be at least 10 characters")
+        .regex(/[A-Z]/, "Must contain at least 1 uppercase letter")
+        .regex(/[0-9]/, "Must contain at least 1 number")
+        .regex(
+          /[!@#$%^&*(),.?":{}|<>]/,
+          "Must contain at least 1 special character"
+        ),
+      confirmPassword: z.string().min(1, "Please confirm your password"),
+    }),
+  ])
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords must match",
+    path: ["confirmPassword"],
+  });
+
+type FormData = z.infer<typeof schema>;
+
+export default function SignupPage() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [createUser, { isLoading }] = useCreateUserMutation();
+  const router = useRouter();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      userType: UserType.CUSTOMER,
+    },
+  });
+
+  const password = watch("password", "");
+  const confirmPassword = watch("confirmPassword", "");
+  const userType = watch("userType");
+
+  const onSubmit = async (data: FormData) => {
+    try {
+      let payload;
+      if (data.userType === UserType.SERVICE_PROVIDER) {
+        payload = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          userType: data.userType,
+          password: data.password,
+          businessName: data.businessName,
+          serviceType: data.serviceType,
+        } satisfies CreateServiceProviderRequest;
+      } else {
+        payload = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          userType: data.userType,
+          password: data.password,
+        } satisfies CreateCustomerRequest;
+      }
+      const response = await createUser(payload).unwrap();
+      localStorage.setItem("userId", response.id);
+      if (!response.isEmailVerified) {
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        setTimeout(() => {}, 1000);
+      }
+    } catch (err) {
+      setNotification({
+        message: getApiError(err, "Failed to create account. Please try again."),
+        type: "error",
+      });
+    }
+  };
+
+  const passwordValidation = (value: string) => ({
+    minLength: value.length >= 10,
+    uppercase: /[A-Z]/.test(value),
+    number: /[0-9]/.test(value),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+  });
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
+      <div className="max-w-md w-full space-y-4">
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-6">
+            <Image
+              width={100}
+              height={100}
+              src="/logoSignup.png"
+              alt="logoSignup.png"
+            />
+          </div>
+          <h2 className="mt-6 text-2xl font-bold text-gray-900">
+            Create Your Account
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Sign up to start booking with us.
+          </p>
+        </div>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <div className="space-y-4">
+            <div className="mt-2">
+              <label
+                htmlFor="firstName"
+                className="block text-sm font-medium text-gray-700"
+              >
+                First Name*
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="firstName"
+                  {...register("firstName")}
+                  type="text"
+                  className="text-gray-500 appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter your first name"
+                />
+              </div>
+              {errors.firstName && (
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.firstName.message}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-2">
+              <label
+                htmlFor="lastName"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Last Name*
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="lastName"
+                  {...register("lastName")}
+                  type="text"
+                  className="text-gray-500 appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter your last name"
+                />
+              </div>
+              {errors.lastName && (
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.lastName.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Email*
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="email"
+                  {...register("email")}
+                  type="email"
+                  className="text-gray-500 appearance-none block w-full pl-10 py-2 pr-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter your email"
+                />
+              </div>
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="userType"
+                className="block text-sm font-medium text-gray-700"
+              >
+                User Type*
+              </label>
+              <div className="mt-1 relative">
+                <select
+                  id="userType"
+                  {...register("userType")}
+                  className="text-gray-500 appearance-none block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="" disabled>
+                    Select user type
+                  </option>
+                  <option value={UserType.CUSTOMER}>Customer</option>
+                  <option value={UserType.SERVICE_PROVIDER}>
+                    Service Provider
+                  </option>
+                </select>
+                {errors.userType && (
+                  <p className="mt-1 text-sm text-red-500">
+                    {errors.userType.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {userType === UserType.SERVICE_PROVIDER && (
+              <>
+                <div className="mt-2">
+                  <label
+                    htmlFor="businessName"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Business Name*
+                  </label>
+                  <div className="mt-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Briefcase className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="businessName"
+                      {...register("businessName")}
+                      type="text"
+                      className="text-gray-500 appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Enter your business name"
+                    />
+                    {userType === UserType.SERVICE_PROVIDER &&
+                      "businessName" in errors && (
+                        <p className="mt-1 text-sm text-red-500">
+                          {errors.businessName?.message}
+                        </p>
+                      )}
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <label
+                    htmlFor="serviceType"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Service Type*
+                  </label>
+                  <div className="mt-1 relative">
+                    <select
+                      id="serviceType"
+                      {...register("serviceType")}
+                      className="text-gray-500 appearance-none block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    >
+                      <option value="" disabled>
+                        Select service type
+                      </option>
+                      <option value={ServiceType.EVENTCENTERS}>
+                        Event Centers
+                      </option>
+                      <option value={ServiceType.CATERING}>Catering</option>
+                      <option value={ServiceType.ALL}>All Services</option>
+                    </select>
+                    {userType === UserType.SERVICE_PROVIDER &&
+                      "serviceType" in errors && (
+                        <p className="mt-1 text-sm text-red-500">
+                          {errors.serviceType?.message}
+                        </p>
+                      )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Password*
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="password"
+                  {...register("password")}
+                  type={showPassword ? "text" : "password"}
+                  className="text-gray-500 appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Type your password"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              {password && (
+                <div className="mt-2 space-y-2">
+                  <div
+                    className={`flex items-center ${
+                      passwordValidation(password).minLength
+                        ? "text-gray-600"
+                        : "text-red-500"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 border rounded-full mr-2 ${
+                        passwordValidation(password).minLength
+                          ? "bg-orange-500 border-orange-500"
+                          : "border-red-500"
+                      }`}
+                    />
+                    <span className="text-sm">Must be at least 10 characters</span>
+                  </div>
+                  <div
+                    className={`flex items-center ${
+                      passwordValidation(password).uppercase
+                        ? "text-gray-600"
+                        : "text-red-500"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 border rounded-full mr-2 ${
+                        passwordValidation(password).uppercase
+                          ? "bg-orange-500 border-orange-500"
+                          : "border-red-500"
+                      }`}
+                    />
+                    <span className="text-sm">1 uppercase letter</span>
+                  </div>
+                  <div
+                    className={`flex items-center ${
+                      passwordValidation(password).number
+                        ? "text-gray-600"
+                        : "text-red-500"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 border rounded-full mr-2 ${
+                        passwordValidation(password).number
+                          ? "bg-orange-500 border-orange-500"
+                          : "border-red-500"
+                      }`}
+                    />
+                    <span className="text-sm">1 or more number</span>
+                  </div>
+                  <div
+                    className={`flex items-center ${
+                      passwordValidation(password).special
+                        ? "text-gray-600"
+                        : "text-red-500"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 border rounded-full mr-2 ${
+                        passwordValidation(password).special
+                          ? "bg-orange-500 border-orange-500"
+                          : "border-red-500"
+                      }`}
+                    />
+                    <span className="text-sm">1 or more special character</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Re-enter Password*
+              </label>
+              <div className="mt-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="confirmPassword"
+                  {...register("confirmPassword")}
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="text-gray-500 appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Re-enter your password"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              {confirmPassword && errors.confirmPassword && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center text-red-500">
+                    <div className="w-4 h-4 border rounded-full mr-2 border-red-500" />
+                    <span className="text-sm">{errors.confirmPassword.message}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full py-2 px-20 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#0047AB] hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer ${
+                isLoading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {isLoading ? "Creating account..." : "Create account"}
+            </button>
+          </div>
+        </form>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/login"
+            className="font-medium text-blue-600 hover:text-blue-500"
+          >
+            Log in
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}

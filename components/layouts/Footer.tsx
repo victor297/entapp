@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Footer(){return <footer className="border-t bg-white px-6 py-10 text-gray-600"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5"><p className="font-semibold text-gray-900">Ent App ? Event venues and catering</p><nav className="flex flex-wrap gap-5 text-sm"><Link href="/event-center">Event centers</Link><Link href="/cateringServices/allPost">Catering</Link><Link href="/saved-listings">Saved listings</Link><Link href="/support">Contact and support</Link></nav></div></footer>;}

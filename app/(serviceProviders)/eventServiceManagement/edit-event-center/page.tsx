@@ -1,0 +1,2 @@
+import ListingEditor from "@/components/operations/ListingEditor";
+export default async function Page({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const q=await searchParams;return <ListingEditor role="provider" kind="eventcenter" id={q.id || q.serviceId}/>;}

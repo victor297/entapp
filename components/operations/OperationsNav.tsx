@@ -1,0 +1,19 @@
+"use client";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { clearBookmarkState } from "@/lib/bookmark-state";
+export default function OperationsNav({ role, isOpen, toggleSidebar }: { role: "admin" | "provider"; isOpen: boolean; toggleSidebar: () => void }) {
+  const { user, userId } = useCurrentUser(); const pathname = usePathname(); const router = useRouter(); const [search, setSearch] = useState("");
+  const catering = user?.serviceProvider?.serviceType === "CATERING"; const all = user?.serviceProvider?.serviceType === "ALL";
+  const base = catering ? "/cateringServiceManagement" : "/eventServiceManagement";
+  const links = role === "admin" ? [
+    ["Overview", "/admin"], ["Bookings", "/admin/bookings"], ["Event centers", "/admin/manage-event-center"], ["Catering services", "/admin/manage-catering-services"], ["Users", "/admin/users"], ["Providers", "/admin/provider"], ["Payments", "/admin/payments"], ["Invoices", "/admin/invoices"], ["Revenue ledger", "/admin/revenue"], ["Disputes", "/admin/disputes"], ["Refunds", "/admin/refunds"], ["Withdrawals", "/admin/withdrawals"], ["Subscriptions", "/admin/subscription-management"], ["Fees", "/admin/fees"], ["Geography", "/admin/geography"], ["Verification", "/admin/kyc"], ["Settings", "/admin/settings"], ["Support", "/admin/support"],
+  ] : [
+    ["Overview", `${base}/${catering ? "cateringServiceDashboard" : "eventServiceDashboard"}`], ["Bookings", `${base}/manage-bookings`], ["Quotes", `${base}/manage-quotes`], ...(!catering || all ? [["Event centers", "/eventServiceManagement/manage-event-center"]] : []), ...(catering || all ? [["Catering services", "/cateringServiceManagement/manage-catering-services"]] : []), ["Availability", "/provider/availability"], ["Invoices", "/provider/invoices"], ["Wallet", "/provider/wallet"], ["Withdrawals", "/provider/withdrawals"], ["Refunds", "/provider/refunds"], ["Subscriptions", "/provider/subscriptions"], ["Verification", "/provider/verification"], ["Settings", `${base}/settings`], ["Support", "/support"],
+  ];
+  function logout() { clearBookmarkState(userId); if (userId) localStorage.removeItem(`current-user:${userId}`); for (const storage of [localStorage, sessionStorage]) for (const key of ["user_id", "access_token", "refresh_token", "token_expiry"]) storage.removeItem(key); window.dispatchEvent(new Event("auth-change")); router.push("/login"); }
+  return <>{isOpen && <button aria-label="Close navigation" onClick={toggleSidebar} className="fixed inset-0 z-30 bg-black/40 md:hidden" />}<aside className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col overflow-y-auto border-r border-gray-200 bg-white p-6 text-gray-900 transition-transform md:translate-x-0 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}><div className="mb-6 flex items-center justify-between"><Link href="/"><Image src="/logo-footer.png" alt="Ent App home" width={145} height={45} unoptimized /></Link><button className="md:hidden" onClick={toggleSidebar}>Close</button></div><label className="mb-5 text-sm">Find a page<input type="search" value={search} onChange={e => setSearch(e.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label><nav className="space-y-1">{links.filter(([label]) => label.toLowerCase().includes(search.toLowerCase())).map(([label, href]) => <Link key={href} aria-current={pathname === href ? "page" : undefined} className={`block rounded-lg px-3 py-2.5 text-sm ${pathname === href ? "bg-blue-50 font-semibold text-blue-800" : "hover:bg-gray-50"}`} href={href} onClick={() => { if (isOpen) toggleSidebar(); }}>{label}</Link>)}</nav><button onClick={logout} className="mt-6 rounded-lg border px-3 py-2 text-left text-red-800">Log out</button></aside></>;
+}

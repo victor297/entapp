@@ -1,0 +1,16 @@
+"use client";
+import Link from "next/link";
+import { useState } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useOperationListQuery } from "@/redux/services/operationsApi";
+import ListingSubscriptionStatus from "@/components/providers/ListingSubscriptionStatus";
+import { money } from "@/lib/operations";
+import { Workspace, Message, ApiError, Pager, fieldClass, buttonClass } from "./Workspace";
+export default function ListingsPage({ role, kind }: { role: "admin" | "provider"; kind: "eventcenter" | "catering" }) {
+  const { userId, user } = useCurrentUser(); const ready = Boolean(user && userId && user.userType === (role === "admin" ? "ADMIN" : "SERVICE_PROVIDER")); const [search, setSearch] = useState(""); const [page, setPage] = useState(1);
+  const result = useOperationListQuery({ resource: kind === "eventcenter" ? "/event-centers" : "/catering", params: role === "provider" ? { serviceProvider: userId } : {} }, { skip: !ready });
+  const rows = (result.data || []).filter(row => (role === "admin" || row.serviceProviderId === userId) && [row.name, row.city, row.description].join(" ").toLowerCase().includes(search.toLowerCase()));
+  const base = role === "admin" ? `/admin/listings/${kind}` : kind === "eventcenter" ? "/eventServiceManagement" : "/cateringServiceManagement";
+  const add = role === "admin" ? `${base}/new` : `${base}/${kind === "eventcenter" ? "add-event-center" : "add-catering-services"}`;
+  return <Workspace role={role} title={kind === "eventcenter" ? "Event centers" : "Catering services"}><div className="mb-5 flex flex-wrap items-center justify-between gap-4"><label className="min-w-60">Search your listings<input className={fieldClass} type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label><Link className={buttonClass} href={add}>Add {kind === "eventcenter" ? "event center" : "catering service"}</Link></div>{result.isFetching && <Message>Loading listings…</Message>}{result.error && <ApiError error={result.error} retry={result.refetch} />}<div className="space-y-4">{rows.slice((page - 1) * 12, page * 12).map(row => <article className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white p-5" key={row.id}><div><h2 className="text-lg font-semibold">{row.name || row.tagLine || "Untitled listing"}</h2><p>{row.city} · {row.status} · {money(row.pricingPerSlot ?? row.startPrice)}</p><ListingSubscriptionStatus status={row.subscriptionStatus} expiry={row.subscriptionExpiry} /></div><div className="flex gap-4"><Link className="text-blue-800 underline" href={`/${kind === "eventcenter" ? "event-center" : "cateringServices"}/${row.id}`}>Public listing</Link><Link className="text-blue-800 underline" href={role === "admin" ? `${base}/${row.id}` : `${base}/${kind === "eventcenter" ? "edit-event-center" : "edit-catering"}?id=${row.id}`}>Edit</Link>{role === "provider" && <Link className="text-blue-800 underline" href={`/provider/availability?serviceId=${row.id}&serviceType=${kind === "eventcenter" ? "EVENTCENTER" : "CATERING"}`}>Availability</Link>}</div></article>)}</div>{!result.isFetching && !result.error && !rows.length && <Message>No listings match your search.</Message>}<Pager page={page} count={rows.length} onChange={setPage} /></Workspace>;
+}
