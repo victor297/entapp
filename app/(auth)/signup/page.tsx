@@ -108,7 +108,7 @@ export default function SignupPage() {
           userType: data.userType,
           password: data.password,
           businessName: data.businessName,
-          serviceType: data.serviceType,
+          // serviceType: data.serviceType,
         } satisfies CreateServiceProviderRequest;
       } else {
         payload = {
@@ -304,7 +304,7 @@ export default function SignupPage() {
                   </div>
                 </div>
 
-                <div className="mt-2">
+                {/* <div className="mt-2">
                   <label
                     htmlFor="serviceType"
                     className="block text-sm font-medium text-gray-700"
@@ -333,7 +333,7 @@ export default function SignupPage() {
                         </p>
                       )}
                   </div>
-                </div>
+                </div> */}
               </>
             )}
 

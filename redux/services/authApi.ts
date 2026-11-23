@@ -31,7 +31,7 @@ export interface CreateServiceProviderRequest {
   userType: UserType.SERVICE_PROVIDER;
   password: string;
   businessName: string;
-  serviceType: ServiceType;
+  // serviceType: ServiceType;
 }
 
 export type CreateUserRequest =

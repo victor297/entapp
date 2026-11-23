@@ -177,8 +177,16 @@ export default function VerifyEmailPage() {
               </button>
             </div>
           </div>
+           <button
+                type="button"
+                className="font-medium text-blue-600 hover:text-blue-500"
+                onClick={() => router.push("/login")}
+              >
+                back to Sign in
+              </button>
         </form>
       </div>
+      
     </div>
   );
 }

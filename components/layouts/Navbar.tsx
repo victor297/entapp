@@ -9,12 +9,15 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { clearBookmarkState } from "@/lib/bookmark-state";
 import { useRouter } from "next/navigation";
 import {
-  useGetUserByIdQuery,
   UserType,
   ServiceType,
 } from "@/redux/services/authApi";
 
-export default function Navbar() {
+interface NavbarProps {
+  variant?: "default" | "hero";
+}
+
+export default function Navbar({ variant = "default" }: NavbarProps) {
   const [isScrolling, setIsScrolling] = useState(false);
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -115,8 +118,15 @@ export default function Navbar() {
   // Show loading skeleton until auth check is complete
   if (isCheckingAuth) {
     return (
-      <nav className="h-20 flex items-center justify-center text-white px-6 md:px-20 relative bg-white/95">
-        <div className="flex items-center justify-between w-full max-w-5xl">
+      <nav
+        className={clsx(
+          "h-20 flex items-center justify-center",
+          variant === "hero"
+            ? "relative text-white"
+            : "relative bg-white/95 text-gray-800 px-6 md:px-20"
+        )}
+      >
+        <div className="flex items-center justify-between w-full max-w-6xl">
           <div>
             <div className="w-32 h-8 bg-gray-300 rounded animate-pulse"></div>
           </div>
@@ -149,18 +159,20 @@ export default function Navbar() {
   return (
     <nav
       className={clsx(
-        "h-20 flex items-center justify-center text-white px-6 md:px-20",
+        "h-20 flex items-center justify-center",
         isScrolling
-          ? "md:px-20 px-10 fixed top-0 left-0 right-0 bg-white/95 shadow-lg z-50 text-gray-800"
-          : "relative"
+          ? "fixed top-0 left-0 right-0 bg-white/95 shadow-lg z-50 text-gray-800 px-10 md:px-20"
+          : variant === "hero"
+            ? "relative text-white"
+            : "relative text-gray-800 px-6 md:px-20"
       )}
     >
-      <div className="flex items-center justify-between w-full max-w-5xl">
+      <div className="flex items-center justify-between w-full max-w-6xl">
         <div>
           <Link href="/">
             <Image
-              src={isScrolling ? "/logo-footer.png" : "/logo-footer.png"}
-              alt="logo"
+              src={variant === "hero" && !isScrolling ? "/logo.png" : "/logo-footer.png"}
+              alt="Ent App home"
               width={150}
               height={100}
               className="object-contain"
@@ -176,8 +188,10 @@ export default function Navbar() {
               key={link.label}
               href={link.href}
               className={clsx(
-                "hover:text-blue-200 text-gray-800",
-                isScrolling && "text-gray-800 hover:text-blue-500"
+                "hover:text-blue-200",
+                variant === "hero" && !isScrolling
+                  ? "text-white"
+                  : "text-gray-800 hover:text-blue-500"
               )}
             >
               {link.label}
@@ -192,7 +206,9 @@ export default function Navbar() {
               <div
                 className={clsx(
                   "px-3 py-1 text-sm",
-                  isScrolling ? "text-gray-700" : "text-gray-800"
+                  variant === "hero" && !isScrolling
+                    ? "text-white"
+                    : "text-gray-700"
                 )}
               >
                 {isLoadingUser ? (
@@ -226,9 +242,9 @@ export default function Navbar() {
                 onClick={handleLogin}
                 className={clsx(
                   "px-4 py-2 cursor-pointer",
-                  isScrolling
-                    ? "text-gray-800 hover:text-blue-500"
-                    : "text-gray-800 hover:text-blue-200"
+                  variant === "hero" && !isScrolling
+                    ? "text-white hover:text-blue-200"
+                    : "text-gray-800 hover:text-blue-500"
                 )}
               >
                 Log in
@@ -249,9 +265,9 @@ export default function Navbar() {
           onClick={() => setOpenMobileMenu(!openMobileMenu)}
         >
           {openMobileMenu ? (
-            <X size={25} color={isScrolling ? "black" : "black"} />
+            <X size={25} color={variant === "hero" && !isScrolling ? "white" : "black"} />
           ) : (
-            <Menu size={25} color={isScrolling ? "black" : "black"} />
+            <Menu size={25} color={variant === "hero" && !isScrolling ? "white" : "black"} />
           )}
         </div>
       </div>
@@ -268,8 +284,8 @@ export default function Navbar() {
           >
             <div className="border-b pb-5">
               <Image
-                src={isScrolling ? "/logo-footer.png" : "/logo.png"}
-                alt="logo"
+                src={variant === "hero" && !isScrolling ? "/logo.png" : "/logo-footer.png"}
+                alt="Ent App home"
                 width={150}
                 height={100}
                 className="object-contain"
