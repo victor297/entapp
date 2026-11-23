@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 import { fetchCustomerBookings, operationError } from "@/lib/scoped-records";
 
 // -------- REQUEST --------
@@ -229,19 +229,7 @@ export enum PaymentReason {
 // -------- API SLICE --------
 export const bookingApi = createApi({
   reducerPath: "bookingApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const accessToken =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   endpoints: (builder) => ({
     createBooking: builder.mutation<
       CreateBookingResponse,

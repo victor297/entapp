@@ -1,6 +1,9 @@
 import React, { JSX, useState, useEffect } from "react";
 import { X, CheckCircle, Calendar, MapPin, FileText } from "lucide-react";
-import { useGetTimeSlotsByServiceProviderQuery, TimeSlot } from "@/redux/services/timeslot";
+import {
+  useGetTimeSlotsByServiceProviderQuery,
+  TimeSlot,
+} from "@/redux/services/timeslot";
 import { useCreateBookingMutation } from "@/redux/services/book";
 import type {
   CreateBookingRequest,
@@ -11,7 +14,10 @@ import PaymentModal from "./paymentModal";
 import SuccessModal from "@/components/ui/SuccessModal";
 import { useGetUserByIdQuery } from "@/redux/services/authApi";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useOperationRecordQuery, useOperationListQuery } from "@/redux/services/operationsApi";
+import {
+  useOperationRecordQuery,
+  useOperationListQuery,
+} from "@/redux/services/operationsApi";
 
 interface DatePickerProps {
   isOpen: boolean;
@@ -95,7 +101,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
   // Payment option
   const [payDepositOnly, setPayDepositOnly] = useState(true);
   const [customPaymentAmount, setCustomPaymentAmount] = useState<number | "">(
-    ""
+    "",
   );
 
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -112,12 +118,25 @@ const DatePicker: React.FC<DatePickerProps> = ({
       ? localStorage.getItem("user_id") || sessionStorage.getItem("user_id")
       : null;
   const { user: currentUser } = useCurrentUser();
-  const feeSettings = useOperationRecordQuery("/admin/app-settings", { skip: !isOpen || currentUser?.userType !== "ADMIN" });
-  const policyListing = useOperationRecordQuery(`/${serviceType === "CATERING" ? "catering" : "event-centers"}/${serviceId}`, { skip: !isOpen });
-  const serviceCharge = feeSettings.data?.serviceCharge !== undefined ? Number(feeSettings.data.serviceCharge) : null;
+  const feeSettings = useOperationRecordQuery("/admin/app-settings", {
+    skip: !isOpen || currentUser?.userType !== "ADMIN",
+  });
+  const policyListing = useOperationRecordQuery(
+    `/${serviceType === "CATERING" ? "catering" : "event-centers"}/${serviceId}`,
+    { skip: !isOpen },
+  );
+  const serviceCharge =
+    feeSettings.data?.serviceCharge !== undefined
+      ? Number(feeSettings.data.serviceCharge)
+      : null;
 
-  const allSlots = useOperationListQuery({ resource: "/timeslot", params: { serviceId } }, { skip: !serviceId || !isOpen });
-  const timeSlotsData = allSlots.data ? { data: allSlots.data as TimeSlot[], count: allSlots.data.length } : undefined;
+  const allSlots = useOperationListQuery(
+    { resource: "/timeslot", params: { serviceId } },
+    { skip: !serviceId || !isOpen },
+  );
+  const timeSlotsData = allSlots.data
+    ? { data: allSlots.data as TimeSlot[], count: allSlots.data.length }
+    : undefined;
   const isLoadingTimeSlots = allSlots.isFetching;
 
   const [createBooking, { isLoading: isBookingLoading }] =
@@ -130,9 +149,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
         ?.filter((slot: TimeSlot) => slot.isAvailable && !slot.bookingId)
         .map(
           (slot: TimeSlot) =>
-            new Date(slot.startTime).toISOString().split("T")[0]
-        ) ?? []
-    )
+            new Date(slot.startTime).toISOString().split("T")[0],
+        ) ?? [],
+    ),
   ).sort(); // Sort dates chronologically
 
   // Auto-navigate to the first month that has available dates
@@ -141,7 +160,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
       const first = new Date(availableDates[0] + "T00:00:00");
       setCurrentMonth(new Date(first.getFullYear(), first.getMonth(), 1));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allSlots.data]);
 
   // Get available time slots for selected date
@@ -173,7 +192,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const subTotal = selectedTimeSlotIds.length * startPrice;
   const discount = Math.round((subTotal * (discountPercentage || 0)) / 100);
   const total = subTotal - discount + (serviceCharge ?? 0);
-  const depositAmount = Math.round(((subTotal - discount) * depositPercentage) / 100) + (serviceCharge ?? 0);
+  const depositAmount =
+    Math.round(((subTotal - discount) * depositPercentage) / 100) +
+    (serviceCharge ?? 0);
 
   // Calculate amount due based on payment option
   const getAmountDue = () => {
@@ -205,13 +226,13 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
   const handlePrevMonth = () => {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   };
 
   const handleNextMonth = () => {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
   };
 
@@ -247,7 +268,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
     setSpecialRequirements((prev) =>
       prev.includes(requirement)
         ? prev.filter((req) => req !== requirement)
-        : [...prev, requirement]
+        : [...prev, requirement],
     );
   };
 
@@ -264,7 +285,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const handleConfirmBooking = async () => {
     try {
       if (serviceCharge === null || !Number.isFinite(serviceCharge)) {
-        setBookingError("The configured service fee is currently unavailable, so this booking cannot be confirmed. Please request a quote or contact the provider.");
+        setBookingError(
+          "The configured service fee is currently unavailable, so this booking cannot be confirmed. Please request a quote or contact the provider.",
+        );
         return;
       }
       if (selectedTimeSlotIds.length === 0) {
@@ -289,7 +312,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
       // Validate custom payment amount
       if (customPaymentAmount !== "" && !isCustomAmountValid) {
         setBookingError(
-          `Custom payment amount must be between ₦${depositAmount.toLocaleString()} and ₦${total.toLocaleString()}`
+          `Custom payment amount must be between ₦${depositAmount.toLocaleString()} and ₦${total.toLocaleString()}`,
         );
         return;
       }
@@ -297,7 +320,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
       // Check if amount is below Stripe minimum
       if (isAmountBelowStripeMinimum) {
         setBookingError(
-          "Payment amount is below the minimum payment of ₦100 required for online payments. Please increase your payment amount."
+          "Payment amount is below the minimum payment of ₦100 required for online payments. Please increase your payment amount.",
         );
         return;
       }
@@ -379,7 +402,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
   const handlePaymentSuccess = () => {
     setIsPaymentModalOpen(false);
-    if (bookingResponse?.id) window.location.assign(`/payment/success?invoiceId=${encodeURIComponent(bookingResponse.id)}`);
+    if (bookingResponse?.id)
+      window.location.assign(
+        `/payment/success?invoiceId=${encodeURIComponent(bookingResponse.id)}`,
+      );
   };
   const handlePaymentError = (error: string) => {
     console.log(error);
@@ -393,7 +419,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
     if (dueAmount < 100) {
       setBookingError(
-        "Payment amount is below the minimum of ₦100 required for online payments. Please contact support for assistance."
+        "Payment amount is below the minimum of ₦100 required for online payments. Please contact support for assistance.",
       );
       return;
     }
@@ -432,7 +458,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
     } else {
       // Single time slot
       const slot = availableTimeSlots.find((slot) =>
-        selectedTimeSlotIds.includes(slot.id)
+        selectedTimeSlotIds.includes(slot.id),
       );
       if (slot) {
         dates.push(`${formattedDate} ${slot.start}`);
@@ -523,8 +549,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
                     {/* Day-of-week headers */}
                     <div className="grid grid-cols-7 gap-1 text-xs text-center text-gray-400 mb-1">
-                      {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => (
-                        <div key={d} className="py-1 font-semibold">{d}</div>
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                        <div key={d} className="py-1 font-semibold">
+                          {d}
+                        </div>
                       ))}
                     </div>
 
@@ -534,7 +562,11 @@ const DatePicker: React.FC<DatePickerProps> = ({
                         const year = currentMonth.getFullYear();
                         const month = currentMonth.getMonth();
                         const firstDay = new Date(year, month, 1).getDay();
-                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        const daysInMonth = new Date(
+                          year,
+                          month + 1,
+                          0,
+                        ).getDate();
                         const cells: JSX.Element[] = [];
 
                         for (let i = 0; i < firstDay; i++) {
@@ -549,7 +581,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
                           cells.push(
                             <button
                               key={isoDate}
-                              onClick={() => isAvailable && setSelectedDate(isoDate)}
+                              onClick={() =>
+                                isAvailable && setSelectedDate(isoDate)
+                              }
                               disabled={!isAvailable}
                               className={`relative aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-colors
                                 ${isSelected ? "bg-blue-600 text-white shadow-md" : ""}
@@ -561,7 +595,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                               {isAvailable && !isSelected && (
                                 <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500" />
                               )}
-                            </button>
+                            </button>,
                           );
                         }
                         return cells;
@@ -571,18 +605,29 @@ const DatePicker: React.FC<DatePickerProps> = ({
                     {/* No available dates this month banner */}
                     {!availableDates.some((d) => {
                       const [y, m] = d.split("-").map(Number);
-                      return y === currentMonth.getFullYear() && m === currentMonth.getMonth() + 1;
+                      return (
+                        y === currentMonth.getFullYear() &&
+                        m === currentMonth.getMonth() + 1
+                      );
                     }) && (
                       <div className="mt-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700">
                         <span>No available dates this month.</span>
                         <button
                           onClick={() => {
                             const next = availableDates.find(
-                              (d) => new Date(d + "T00:00:00") > new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
+                              (d) =>
+                                new Date(d + "T00:00:00") >
+                                new Date(
+                                  currentMonth.getFullYear(),
+                                  currentMonth.getMonth() + 1,
+                                  0,
+                                ),
                             );
                             if (next) {
                               const nd = new Date(next + "T00:00:00");
-                              setCurrentMonth(new Date(nd.getFullYear(), nd.getMonth(), 1));
+                              setCurrentMonth(
+                                new Date(nd.getFullYear(), nd.getMonth(), 1),
+                              );
                             }
                           }}
                           className="ml-3 text-blue-600 font-semibold hover:text-blue-800 underline"
@@ -596,7 +641,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   {/* Time Slot Selection */}
                   {selectedDate && (
                     <div className="text-gray-600">
-                      <h3 className="font-medium mb-3">Available Time Slots</h3>
+                      <h3 className="font-medium mb-3">
+                        Available Time Slotss
+                      </h3>
                       {availableTimeSlots.length === 0 ? (
                         <p className="text-gray-600 text-center py-4">
                           No available time slots for this date.
@@ -627,7 +674,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                       <ul className="list-disc list-inside">
                         {availableTimeSlots
                           .filter((slot) =>
-                            selectedTimeSlotIds.includes(slot.id)
+                            selectedTimeSlotIds.includes(slot.id),
                           )
                           .map((slot) => (
                             <li key={slot.id}>
@@ -892,7 +939,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                       checked={isCancellationPolicyAccepted}
                       onChange={() =>
                         setIsCancellationPolicyAccepted(
-                          !isCancellationPolicyAccepted
+                          !isCancellationPolicyAccepted,
                         )
                       }
                       className="mt-1 mr-2"
@@ -1012,7 +1059,11 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   )}
 
                   <div className="flex justify-between font-medium border-t pt-2 mt-2">
-                    <span>{serviceCharge === null ? "Estimate before platform fee:" : "Total Amount:"}</span>
+                    <span>
+                      {serviceCharge === null
+                        ? "Estimate before platform fee:"
+                        : "Total Amount:"}
+                    </span>
                     <span>₦{total.toLocaleString()}</span>
                   </div>
 
@@ -1157,12 +1208,35 @@ const DatePicker: React.FC<DatePickerProps> = ({
               )}
 
               <section className="rounded-lg border p-4 text-sm text-gray-700">
-                <h3 className="mb-2 font-semibold">Cancellation policy and terms</h3>
-                <p className="whitespace-pre-line">{policyListing.data?.cancellationPolicy || "The cancellation policy is unavailable. Contact the provider before confirming."}</p>
-                <p className="mt-3 whitespace-pre-line">{policyListing.data?.termsOfUse || ""}</p>
-                <p className="mt-3">An exact refund preview is not currently available. Any refund needs confirmation under the provider&apos;s policy.</p>
-                {serviceCharge === null && <p role="alert" className="mt-3 font-medium text-red-800">The configured service fee is unavailable, so this booking cannot be confirmed. You can close this panel and request a quote.</p>}
-                {allSlots.error && <p role="alert" className="mt-3 text-red-800">{getApiError(allSlots.error, "Could not load availability. Please retry.")}</p>}
+                <h3 className="mb-2 font-semibold">
+                  Cancellation policy and terms
+                </h3>
+                <p className="whitespace-pre-line">
+                  {policyListing.data?.cancellationPolicy ||
+                    "The cancellation policy is unavailable. Contact the provider before confirming."}
+                </p>
+                <p className="mt-3 whitespace-pre-line">
+                  {policyListing.data?.termsOfUse || ""}
+                </p>
+                <p className="mt-3">
+                  An exact refund preview is not currently available. Any refund
+                  needs confirmation under the provider&apos;s policy.
+                </p>
+                {serviceCharge === null && (
+                  <p role="alert" className="mt-3 font-medium text-red-800">
+                    The configured service fee is unavailable, so this booking
+                    cannot be confirmed. You can close this panel and request a
+                    quote.
+                  </p>
+                )}
+                {allSlots.error && (
+                  <p role="alert" className="mt-3 text-red-800">
+                    {getApiError(
+                      allSlots.error,
+                      "Could not load availability. Please retry.",
+                    )}
+                  </p>
+                )}
               </section>
 
               <div className="flex justify-between mt-8">
@@ -1201,7 +1275,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
                 Booking created
               </h2>
               <p className="text-gray-600 mb-6">
-                Your booking request has been created. Open your bookings to check its confirmation and payment status.
+                Your booking request has been created. Open your bookings to
+                check its confirmation and payment status.
               </p>
 
               {/* Invoice Display */}
@@ -1241,7 +1316,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                             ₦{item.amount.toLocaleString()}
                           </td>
                         </tr>
-                      )
+                      ),
                     )}
                   </tbody>
                 </table>

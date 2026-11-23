@@ -1,7 +1,6 @@
 "use client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-
 import Header from "@/components/layouts/Header";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +17,7 @@ import Notification from "../../../../components/ui/Notification";
 import Pagination from "@/components/providers/Pagination";
 import CreateBookingModal from "../../../../components/modals/CreateBookingModal";
 import ListingSubscriptionStatus from "@/components/providers/ListingSubscriptionStatus";
+import RefundPolicySection from "@/components/listings/RefundPolicySection";
 
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-gray-50/80 flex items-center justify-center z-50">
@@ -69,7 +69,7 @@ export default function CateringServiceDetails() {
       limit: itemsPerPage,
       offset: (currentPage - 1) * itemsPerPage,
     },
-    { skip: !id }
+    { skip: !id },
   );
 
   const [createTimeSlots, { isLoading: isCreating }] =
@@ -154,7 +154,7 @@ export default function CateringServiceDetails() {
   const handleSlotChange = (
     index: number,
     field: "date" | "startTime" | "endTime",
-    value: string
+    value: string,
   ) => {
     const newSlots = [...slots];
     newSlots[index][field] = value;
@@ -189,7 +189,7 @@ export default function CateringServiceDetails() {
       hour: "numeric",
       minute: "numeric",
       hour12: true,
-    }
+    },
   );
 
   const formattedCuisine = cateringService.cuisine.join(", ");
@@ -216,7 +216,9 @@ export default function CateringServiceDetails() {
               {cateringService.tagLine}
             </h1>
             <p className="text-sm text-gray-500">ID: {cateringService.id}</p>
-            <p className="text-sm text-gray-500">Name: {cateringService.name}</p>
+            <p className="text-sm text-gray-500">
+              Name: {cateringService.name}
+            </p>
           </div>
 
           <div className="bg-white shadow-lg rounded-lg p-6 mb-6">
@@ -248,10 +250,7 @@ export default function CateringServiceDetails() {
                   label="Description"
                   value={cateringService.description}
                 />
-                <DetailRow
-                  label="Location"
-                  value={formattedLocation}
-                />
+                <DetailRow label="Location" value={formattedLocation} />
                 <DetailRow
                   label="Street"
                   value={`${cateringService.streetAddress}${
@@ -262,14 +261,11 @@ export default function CateringServiceDetails() {
                 />
                 <DetailRow label="Postal Code" value={cateringService.postal} />
                 <DetailRow label="Created At" value={formattedDate} />
-                <DetailRow
-                  label="Event Types"
-                  value={formattedEventTypes}
-                />
+                <DetailRow label="Event Types" value={formattedEventTypes} />
               </div>
               <div className="space-y-3">
                 <DetailRow
-                  label="Deposit Percentage"
+                  label="(%) Deposit Percentage"
                   value={`${cateringService.depositPercentage}%`}
                 />
                 <DetailRow
@@ -289,11 +285,22 @@ export default function CateringServiceDetails() {
                 <DetailRow label="Contact" value={formattedContact} />
                 <DetailRow label="Featured" value={formattedIsFeatured} />
                 <div className="flex items-start gap-2">
-                  <p className="w-32 shrink-0 text-sm font-medium text-gray-500">Listing subscription</p>
-                  <ListingSubscriptionStatus status={cateringService.subscriptionStatus} expiry={cateringService.subscriptionExpiry} />
+                  <p className="w-32 shrink-0 text-sm font-medium text-gray-500">
+                    Listing subscription
+                  </p>
+                  <ListingSubscriptionStatus
+                    status={cateringService.subscriptionStatus}
+                    expiry={cateringService.subscriptionExpiry}
+                  />
                 </div>
-                <DetailRow label="Terms of Use" value={cateringService.termsOfUse} />
-                <DetailRow label="Cancellation Policy" value={cateringService.cancellationPolicy} />
+                <DetailRow
+                  label="Terms of Use"
+                  value={cateringService.termsOfUse}
+                />
+                <DetailRow
+                  label="Cancellation Policy"
+                  value={cateringService.cancellationPolicy}
+                />
               </div>
             </div>
           </div>
@@ -333,7 +340,7 @@ export default function CateringServiceDetails() {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
-                            }
+                            },
                           )}
                         </td>
                         <td className="px-4 py-2 text-gray-600">
@@ -366,6 +373,13 @@ export default function CateringServiceDetails() {
               />
             )}
           </div>
+          {cateringService && (
+            <RefundPolicySection
+              serviceId={cateringService.id}
+              serviceType="catering"
+              serviceProviderId={cateringService.serviceProviderId}
+            />
+          )}
         </main>
 
         {/* Modal for creating time slots */}

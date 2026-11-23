@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 
 export interface State {
   id: string;
@@ -276,19 +276,7 @@ export interface UpdateAppSettingsRequest {
 
 export const adminApi = createApi({
   reducerPath: "adminApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const token =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ["Country", "State", "Payment", "Invoice", "User", "SubscriptionPlan", "AppSettings", "Subscription"],
   endpoints: (builder) => ({
     getCountries: builder.query<

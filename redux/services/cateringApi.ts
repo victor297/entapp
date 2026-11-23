@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 
 export enum ServiceType {
   EVENTCENTERS = "EVENTCENTERS",
@@ -102,20 +102,7 @@ export interface StateResponse {
 export const cateringApi = createApi({
   reducerPath: "cateringApi",
   tagTypes: ["Catering"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      if (typeof window === "undefined") return headers;
-      const accessToken =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   endpoints: (builder) => ({
     getCaterings: builder.query<
       CateringResponse,
@@ -200,17 +187,6 @@ export const cateringApi = createApi({
       }),
       invalidatesTags: (_result, _err, { id }) => [{ type: "Catering", id }, { type: "Catering", id: "LIST" }],
     }),
-    updateCateringWithImages: builder.mutation<
-      Catering,
-      { id: string; data: FormData }
-    >({
-      query: ({ id, data }) => ({
-        url: `/catering/${id}/images`,
-        method: "PATCH",
-        body: data,
-      }),
-      invalidatesTags: (_result, _err, { id }) => [{ type: "Catering", id }, { type: "Catering", id: "LIST" }],
-    }),
     deleteCatering: builder.mutation<void, string>({
       query: (id) => ({
         url: `/catering/${id}`,
@@ -264,7 +240,6 @@ export const {
   useCreateCateringMutation,
   useUploadCateringImagesMutation,
   useUpdateCateringMutation,
-  useUpdateCateringWithImagesMutation,
   useDeleteCateringMutation,
   useGetCateringsByCityQuery,
   useGetCountriesQuery,

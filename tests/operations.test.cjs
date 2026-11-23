@@ -129,15 +129,18 @@ test("invoice outstanding amounts use only real invoice-payment debits and serve
 });
 
 test("quote details retain numeric budgets and requirements without inventing accepted statuses", () => {
-  const { parseQuoteDetails, quoteStatus, rememberQuote, knownQuoteIds } = loadSource("lib/quote-details.ts");
+  const { parseQuoteDetails, formatQuoteBudget, quoteStatus } = loadSource("lib/quote-details.ts");
   const details = { version: 1, minBudget: 100000, maxBudget: 200000, currency: "NGN", eventDate: "2026-12-01", guests: 100, eventType: "WEDDING", menu: "Vegetarian", dietary: "Vegan", allergies: "Peanuts", drinks: "Juice", staffing: "4 servers", equipment: "Tables", notes: "Outdoor" };
   assert.deepEqual(parseQuoteDetails(JSON.stringify(details)), details);
   assert.equal(parseQuoteDetails("Older free text note"), null);
   assert.equal(parseQuoteDetails('{"version":1,"minBudget":"100","maxBudget":200}'), null);
+  assert.equal(formatQuoteBudget("100000-200000"), "100000 – 200000 NGN");
+  assert.equal(formatQuoteBudget("Negotiable"), "Negotiable");
   assert.equal(quoteStatus("GENERATED"), "Quote requested");
-  rememberQuote("customer-1", "quote-1"); rememberQuote("customer-1", "quote-1");
-  assert.deepEqual(knownQuoteIds("customer-1"), ["quote-1"]);
-  assert.deepEqual(knownQuoteIds("customer-2"), []);
+  const quotesPage = fs.readFileSync(path.join(root, "components/operations/QuotesPage.tsx"), "utf8");
+  assert.match(quotesPage, /activeRole === "provider" \? \{ serviceProvider: userId \} : \{ customerId: userId \}/);
+  assert.match(quotesPage, /row\.customerId === userId/);
+  assert.doesNotMatch(quotesPage, /knownQuoteIds/);
 });
 
 test("current-user snapshots persist identity fields without passwords or session tokens", () => {

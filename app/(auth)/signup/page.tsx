@@ -32,7 +32,7 @@ const schema = z
         .regex(/[0-9]/, "Must contain at least 1 number")
         .regex(
           /[!@#$%^&*(),.?":{}|<>]/,
-          "Must contain at least 1 special character"
+          "Must contain at least 1 special character",
         ),
       confirmPassword: z.string().min(1, "Please confirm your password"),
     }),
@@ -44,14 +44,14 @@ const schema = z
       businessName: z
         .string()
         .min(1, "Business name is required for service providers"),
-      serviceType: z.enum(
-        [ServiceType.EVENTCENTERS, ServiceType.CATERING, ServiceType.ALL],
-        {
-          errorMap: () => ({
-            message: "Service type is required for service providers",
-          }),
-        }
-      ),
+      // serviceType: z.enum(
+      //   [ServiceType.EVENTCENTERS, ServiceType.CATERING, ServiceType.ALL],
+      //   {
+      //     errorMap: () => ({
+      //       message: "Service type is required for service providers",
+      //     }),
+      //   },
+      // ),
       password: z
         .string()
         .min(10, "Must be at least 10 characters")
@@ -59,7 +59,7 @@ const schema = z
         .regex(/[0-9]/, "Must contain at least 1 number")
         .regex(
           /[!@#$%^&*(),.?":{}|<>]/,
-          "Must contain at least 1 special character"
+          "Must contain at least 1 special character",
         ),
       confirmPassword: z.string().min(1, "Please confirm your password"),
     }),
@@ -98,6 +98,7 @@ export default function SignupPage() {
   const userType = watch("userType");
 
   const onSubmit = async (data: FormData) => {
+    console.log("Form Data:", data);
     try {
       let payload;
       if (data.userType === UserType.SERVICE_PROVIDER) {
@@ -127,7 +128,10 @@ export default function SignupPage() {
       }
     } catch (err) {
       setNotification({
-        message: getApiError(err, "Failed to create account. Please try again."),
+        message: getApiError(
+          err,
+          "Failed to create account. Please try again.",
+        ),
         type: "error",
       });
     }
@@ -383,7 +387,9 @@ export default function SignupPage() {
                           : "border-red-500"
                       }`}
                     />
-                    <span className="text-sm">Must be at least 10 characters</span>
+                    <span className="text-sm">
+                      Must be at least 10 characters
+                    </span>
                   </div>
                   <div
                     className={`flex items-center ${
@@ -471,7 +477,9 @@ export default function SignupPage() {
                 <div className="mt-2 space-y-2">
                   <div className="flex items-center text-red-500">
                     <div className="w-4 h-4 border rounded-full mr-2 border-red-500" />
-                    <span className="text-sm">{errors.confirmPassword.message}</span>
+                    <span className="text-sm">
+                      {errors.confirmPassword.message}
+                    </span>
                   </div>
                 </div>
               )}

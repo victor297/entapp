@@ -1,2 +1,2 @@
 import QuotesPage from "@/components/operations/QuotesPage";
-export default function Page() { return <QuotesPage role="customer" />; }
+export default function Page() { return <QuotesPage role="auto" />; }

@@ -1,7 +1,6 @@
 "use client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-
 import Header from "@/components/layouts/Header";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +17,7 @@ import Notification from "../../../../components/ui/Notification";
 import Pagination from "@/components/providers/Pagination";
 import CreateBookingModal from "../../../../components/modals/CreateBookingModal";
 import ListingSubscriptionStatus from "@/components/providers/ListingSubscriptionStatus";
+import RefundPolicySection from "@/components/listings/RefundPolicySection";
 
 const LoadingSpinner = () => {
   return (
@@ -74,7 +74,7 @@ export default function EventCenterDetails() {
       limit: itemsPerPage,
       offset: (currentPage - 1) * itemsPerPage,
     },
-    { skip: !id }
+    { skip: !id },
   );
 
   const [createTimeSlots, { isLoading: isCreating }] =
@@ -159,7 +159,7 @@ export default function EventCenterDetails() {
   const handleSlotChange = (
     index: number,
     field: "date" | "startTime" | "endTime",
-    value: string
+    value: string,
   ) => {
     const newSlots = [...slots];
     newSlots[index][field] = value;
@@ -198,7 +198,7 @@ export default function EventCenterDetails() {
       hour: "numeric",
       minute: "numeric",
       hour12: true,
-    }
+    },
   );
 
   // Format amenities as comma-separated string
@@ -273,11 +273,11 @@ export default function EventCenterDetails() {
               </div>
               <div className="space-y-3">
                 <DetailRow
-                  label="Deposit Percentage"
+                  label="(%) Deposit Percentage"
                   value={`${eventCenter.depositPercentage}%`}
                 />
                 <DetailRow
-                  label="Discount Percentage"
+                  label="(%) Discount Percentage"
                   value={`${eventCenter.discountPercentage}%`}
                 />
                 <DetailRow
@@ -303,8 +303,13 @@ export default function EventCenterDetails() {
                 />
                 <DetailRow label="Status" value={eventCenter.status} />
                 <div className="flex items-start gap-2">
-                  <p className="w-32 shrink-0 text-sm font-medium text-gray-500">Listing subscription</p>
-                  <ListingSubscriptionStatus status={eventCenter.subscriptionStatus} expiry={eventCenter.subscriptionExpiry} />
+                  <p className="w-32 shrink-0 text-sm font-medium text-gray-500">
+                    Listing subscription
+                  </p>
+                  <ListingSubscriptionStatus
+                    status={eventCenter.subscriptionStatus}
+                    expiry={eventCenter.subscriptionExpiry}
+                  />
                 </div>
               </div>
             </div>
@@ -346,7 +351,7 @@ export default function EventCenterDetails() {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
-                            }
+                            },
                           )}
                         </td>
                         <td className="px-4 py-2 text-gray-600">
@@ -379,6 +384,13 @@ export default function EventCenterDetails() {
               />
             )}
           </div>
+          {eventCenter && (
+            <RefundPolicySection
+              serviceId={eventCenter.id}
+              serviceType="event-center"
+              serviceProviderId={eventCenter.serviceProviderId}
+            />
+          )}
         </main>
 
         {/* Modal for creating time slots */}

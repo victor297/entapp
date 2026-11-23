@@ -12,7 +12,9 @@ import type { Catering } from "@/redux/services/cateringApi";
 // import DatePicker from "@/components/ui/DatePicker";
 import CateringServices from "@/components/layouts/CateringServices";
 import QuoteRequest from "@/components/ui/QuoteRequest";
-import { useAuthRedirect } from '@/hooks/useAuthRedirect';
+import { useAuthRedirect } from "@/hooks/useAuthRedirect";
+import RefundPolicySection from "@/components/listings/RefundPolicySection";
+import ExpandableDescription from "@/components/ui/ExpandableDescription";
 
 // interface BookingData {
 //   date: string;
@@ -32,7 +34,11 @@ import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 //   return Math.round(deposit * 100) / 100;
 // }
 
-export default function CateringDetailsClient({ cateringService }: { cateringService: Catering }) {
+export default function CateringDetailsClient({
+  cateringService,
+}: {
+  cateringService: Catering;
+}) {
   const { isCheckingAuth, requireAuth } = useAuthRedirect();
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -40,7 +46,23 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
   // const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   // const [lastBooking, setLastBooking] = useState<BookingData | null>(null);
 
-  const images = cateringService.images?.filter(Boolean).length ? cateringService.images.filter(Boolean) : ["/listing-placeholder.svg"];
+  const images = cateringService.images?.filter(Boolean).length
+    ? cateringService.images.filter(Boolean)
+    : ["/listing-placeholder.svg"];
+  const serviceHighlights = [
+    cateringService.tagLine?.trim()
+      ? `Tagline: ${cateringService.tagLine.trim()}`
+      : null,
+    cateringService.cuisine?.length
+      ? `Cuisine: ${cateringService.cuisine.join(", ")}`
+      : null,
+    cateringService.dishTypes?.length
+      ? `Dish types: ${cateringService.dishTypes.join(", ")}`
+      : null,
+    cateringService.eventTypes?.length
+      ? `Events catered: ${cateringService.eventTypes.join(", ")}`
+      : null,
+  ].filter((detail): detail is string => Boolean(detail));
 
   const handleRequestQuote = () => {
     requireAuth(() => setIsQuoteRequestOpen(true));
@@ -48,7 +70,13 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
   // State and logic for CustomerReviews pagination
   const [currentReviewPage, setCurrentReviewPage] = useState<number>(0);
 
-  const reviews: {quote:string;name:string;userImage:string;profession:string;companyName:string}[] = [];
+  const reviews: {
+    quote: string;
+    name: string;
+    userImage: string;
+    profession: string;
+    companyName: string;
+  }[] = [];
 
   const reviewsPerPage = 3;
   const totalReviewPages = Math.ceil(reviews.length / reviewsPerPage);
@@ -57,7 +85,7 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
     setCurrentReviewPage((prev) => (prev + 1) % totalReviewPages);
   const handlePrevReview = () =>
     setCurrentReviewPage(
-      (prev) => (prev - 1 + totalReviewPages) % totalReviewPages
+      (prev) => (prev - 1 + totalReviewPages) % totalReviewPages,
     );
 
   const handlePrevImage = () => {
@@ -89,9 +117,9 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
         toggleCategoryDropdown={() => {}}
         toggleLocationDropdown={() => {}}
         handleCategoryChange={() => {}}
-        handleLocationChange={() => { }}
-        onSearch={() => { }}
-        showSearch={false} 
+        handleLocationChange={() => {}}
+        onSearch={() => {}}
+        showSearch={false}
         height="400px"
         backgroundImage="url('/caterringSerDetails.png')"
         heading="Catering Services"
@@ -123,7 +151,12 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
               </span>
             )}
           </h1>
-          <BookmarkButton listingId={cateringService.id} serviceType="catering" showLabel className="mb-4" />
+          <BookmarkButton
+            listingId={cateringService.id}
+            serviceType="catering"
+            showLabel
+            className="mb-4"
+          />
           <p className="text-gray-600 mb-8">{cateringService.description}</p>
 
           {/* Image Gallery */}
@@ -312,7 +345,8 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
               </h3>
               <div className="flex items-center gap-2">
                 <span className="text-gray-600 text-sm">
-                  Starting at: ₦{cateringService.startPrice.toLocaleString("en-NG")}
+                  Starting at: ₦
+                  {cateringService.startPrice.toLocaleString("en-NG")}
                 </span>
               </div>
             </div>
@@ -343,16 +377,19 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
               </div>
             </div>
 
+            <RefundPolicySection
+              serviceId={cateringService.id}
+              serviceType="catering"
+              serviceProviderId={cateringService.serviceProviderId}
+            />
+
             {/* Description */}
             <div>
               <hr className="mb-2" />
               <h3 className="text-sm font-semibold text-gray-800 mb-2">
                 Description
               </h3>
-              <p className="text-gray-600 text-xs">
-                {cateringService.description}
-              </p>
-              <button className="text-blue-600 text-xs mt-2">Read more</button>
+              <ExpandableDescription text={cateringService.description} />
             </div>
           </div>
         </div>
@@ -372,13 +409,16 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
           <div className="space-y-4 mb-6">
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-2">
-                What&apos;s Included
+                Service details
               </h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <p>• Professional catering team</p>
-                <p>• Fresh, high-quality ingredients</p>
-                <p>• Complete event setup</p>
-                <p>• Customizable menu options</p>
+                {serviceHighlights.length ? (
+                  serviceHighlights.map((detail) => (
+                    <p key={detail}>{detail}</p>
+                  ))
+                ) : (
+                  <p>No service details provided.</p>
+                )}
               </div>
             </div>
 
@@ -393,14 +433,14 @@ export default function CateringDetailsClient({ cateringService }: { cateringSer
                 </div>
                 {cateringService.discountPercentage !== undefined && (
                   <div className="flex justify-between items-center text-gray-700">
-                    <span className="font-medium">Discount:</span>
+                    <span className="font-medium">(%) Discount </span>
                     <span className="font-semibold text-green-600">
                       {cateringService.discountPercentage}%
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between items-center text-gray-700">
-                  <span className="font-medium">Deposit percentage:</span>
+                  <span className="font-medium">(%) Deposit Percentage</span>
                   <span className="font-semibold text-gray-900">
                     {cateringService.depositPercentage}%
                   </span>

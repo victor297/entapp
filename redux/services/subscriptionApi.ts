@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 
 export interface Subscription {
   id: string;
@@ -94,18 +94,7 @@ export interface PaginatedSubscriptionResponse {
 
 export const subscriptionApi = createApi({
   reducerPath: "subscriptionApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const token =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ["Subscription"],
   endpoints: (builder) => ({
     getSubscriptions: builder.query<

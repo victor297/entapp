@@ -12,7 +12,9 @@ import Footer from "@/components/layouts/Footer";
 import DatePicker from "@/components/ui/DatePicker";
 import type { EventCenter } from "@/redux/services/eventsApi";
 import QuoteRequest from "@/components/ui/QuoteRequest";
-import { useAuthRedirect } from '@/hooks/useAuthRedirect';
+import { useAuthRedirect } from "@/hooks/useAuthRedirect";
+import RefundPolicySection from "@/components/listings/RefundPolicySection";
+import ExpandableDescription from "@/components/ui/ExpandableDescription";
 
 interface BookingData {
   date: string;
@@ -32,7 +34,11 @@ interface BookingData {
 //   return Math.round(deposit * 100) / 100;
 // }
 
-export default function EventCenterDetailsClient({ eventCenter }: { eventCenter: EventCenter }) {
+export default function EventCenterDetailsClient({
+  eventCenter,
+}: {
+  eventCenter: EventCenter;
+}) {
   const { isCheckingAuth, requireAuth } = useAuthRedirect();
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -40,7 +46,23 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
   const [lastBooking, setLastBooking] = useState<BookingData | null>(null);
   const [isQuoteRequestOpen, setIsQuoteRequestOpen] = useState(false);
 
-  const images = eventCenter.images?.filter(Boolean).length ? eventCenter.images.filter(Boolean) : ["/listing-placeholder.svg"];
+  const images = eventCenter.images?.filter(Boolean).length
+    ? eventCenter.images.filter(Boolean)
+    : ["/listing-placeholder.svg"];
+  const venueHighlights = [
+    eventCenter.venueLayout?.trim()
+      ? `Venue layout: ${eventCenter.venueLayout.trim()}`
+      : null,
+    eventCenter.amenities?.length
+      ? `Amenities: ${eventCenter.amenities.join(", ")}`
+      : null,
+    eventCenter.eventTypes?.length
+      ? `Events hosted: ${eventCenter.eventTypes.join(", ")}`
+      : null,
+    eventCenter.sittingCapacity
+      ? `Seating capacity: ${eventCenter.sittingCapacity} guests`
+      : null,
+  ].filter((detail): detail is string => Boolean(detail));
 
   const [currentReviewPage, setCurrentReviewPage] = useState<number>(0);
   const handleChooseDateTime = () => {
@@ -50,7 +72,13 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
   const handleRequestQuote = () => {
     requireAuth(() => setIsQuoteRequestOpen(true));
   };
-  const reviews: {quote:string;name:string;userImage:string;profession:string;companyName:string}[] = [];
+  const reviews: {
+    quote: string;
+    name: string;
+    userImage: string;
+    profession: string;
+    companyName: string;
+  }[] = [];
 
   const reviewsPerPage = 3;
   const totalReviewPages = Math.ceil(reviews.length / reviewsPerPage);
@@ -59,7 +87,7 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
     setCurrentReviewPage((prev) => (prev + 1) % totalReviewPages);
   const handlePrevReview = () =>
     setCurrentReviewPage(
-      (prev) => (prev - 1 + totalReviewPages) % totalReviewPages
+      (prev) => (prev - 1 + totalReviewPages) % totalReviewPages,
     );
 
   const handlePrevImage = () => {
@@ -90,9 +118,9 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
         toggleCategoryDropdown={() => {}}
         toggleLocationDropdown={() => {}}
         handleCategoryChange={() => {}}
-        handleLocationChange={() => { }}
-        onSearch={() => { }}
-        showSearch={false} 
+        handleLocationChange={() => {}}
+        onSearch={() => {}}
+        showSearch={false}
         height="400px"
         backgroundImage="url('/eventHeroImage.png')"
         heading="Event Centers"
@@ -115,7 +143,12 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
           <h1 className="md:text-4xl text-2xl font-bold text-gray-900 mb-4">
             {eventCenter.name}
           </h1>
-          <BookmarkButton listingId={eventCenter.id} serviceType="eventcenter" showLabel className="mb-4" />
+          <BookmarkButton
+            listingId={eventCenter.id}
+            serviceType="eventcenter"
+            showLabel
+            className="mb-4"
+          />
           <p className="text-gray-600 mb-8">{eventCenter.description}</p>
 
           <div className="relative mb-8">
@@ -298,7 +331,8 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
                   Deposit: {eventCenter.depositPercentage}% of slot price
                 </span>
                 <span className="text-gray-600 text-sm">
-                  | Per slot: ₦{eventCenter.pricingPerSlot.toLocaleString("en-NG")}
+                  | Per slot: ₦
+                  {eventCenter.pricingPerSlot.toLocaleString("en-NG")}
                 </span>
               </div>
             </div>
@@ -345,13 +379,17 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
                 </span>
               </div>
             </div>
+            <RefundPolicySection
+              serviceId={eventCenter.id}
+              serviceType="event-center"
+              serviceProviderId={eventCenter.serviceProviderId}
+            />
             <div>
               <hr className="mb-2" />
               <h3 className="text-sm font-semibold text-gray-800 mb-2">
                 Description
               </h3>
-              <p className="text-gray-600 text-xs">{eventCenter.description}</p>
-              <button className="text-blue-600 text-xs mt-2">Read more</button>
+              <ExpandableDescription text={eventCenter.description} />
             </div>
           </div>
         </div>
@@ -369,13 +407,16 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
           <div className="space-y-4 mb-6">
             <div className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-2">
-                What&apos;s Included
+                Venue details
               </h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <p>• Spacious venue with modern amenities</p>
-                <p>• Professional event support team</p>
-                <p>• Flexible seating arrangements</p>
-                <p>• High-speed Wi-Fi and AV equipment</p>
+                {venueHighlights.length ? (
+                  venueHighlights.map((detail) => (
+                    <p key={detail}>{detail}</p>
+                  ))
+                ) : (
+                  <p>No venue details provided.</p>
+                )}
               </div>
             </div>
 
@@ -397,7 +438,7 @@ export default function EventCenterDetailsClient({ eventCenter }: { eventCenter:
                   </div>
                 )}
                 <div className="flex justify-between items-center text-gray-700">
-                  <span className="font-medium">Deposit percentage:</span>
+                  <span className="font-medium">(%) Deposit percentage:</span>
                   <span className="font-semibold text-gray-900">
                     {eventCenter.depositPercentage}%
                   </span>

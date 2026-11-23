@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 
 export interface TimeSlot {
   id: string;
@@ -34,19 +34,7 @@ export interface TimeSlotResponse {
 export const timeslotApi = createApi({
   reducerPath: "timeslotApi",
   tagTypes: ["TimeSlot"],
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const accessToken =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   endpoints: (builder) => ({
     createTimeSlots: builder.mutation<TimeSlot[], CreateTimeSlotRequest>({
       query: (payload) => ({

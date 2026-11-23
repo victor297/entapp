@@ -1,18 +1,12 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 import { type ApiRecord } from "@/lib/operations";
 import { fetchScopedRecords, fetchCustomerBookings, operationError } from "@/lib/scoped-records";
 
 type Query = { resource: string; params?: Record<string, string | number | undefined> };
 export const operationsApi = createApi({
   reducerPath: "operationsApi", tagTypes: ["Operations"],
-  baseQuery: fetchBaseQuery({ baseUrl: API_BASE_URL, timeout: 20000, prepareHeaders: headers => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-    }
-    return headers;
-  }}),
+  baseQuery: baseQueryWithReauth,
   endpoints: builder => ({
     providerInvoices: builder.query<ApiRecord[], string>({
       async queryFn(userId, _api, _extra, baseQuery) {

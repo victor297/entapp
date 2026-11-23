@@ -201,9 +201,27 @@ export default function LoginPage() {
 
       const { user, access_token, refresh_token } = response;
 
+      if (!user.isEmailVerified) {
+        clearTokens();
+        localStorage.setItem("userId", user.id);
+        try {
+          await resendVerification({ id: user.id }).unwrap();
+        } catch (error) {
+          setNotification({
+            message: getApiError(error, "Unable to send a verification code. Please try again."),
+            type: "error",
+          });
+          setIsNavigating(false);
+          return;
+        }
+        router.replace(`/verify-email?email=${encodeURIComponent(user.email || data.email)}`);
+        return;
+      }
+
       // Store tokens and user ID based on rememberMe
       storeTokens(access_token, refresh_token, user.id, data.rememberMe);
       persistBookmarkState(user);
+      localStorage.removeItem("userId");
 
       // Redirect based on userType
       const targetRoute = getRedirectRoute(user);

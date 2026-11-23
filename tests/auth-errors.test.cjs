@@ -58,6 +58,47 @@ test("a real credential rejection keeps the server's validation message", async 
   await assert.rejects(store().dispatch(api.endpoints.login.initiate({ email: "customer@example.test", password: "wrong" })).unwrap(), (error) => getApiError(error, "Unable to log in.") === "Invalid credentials");
 });
 
+test("expired access tokens refresh once and retry the protected request with credentials", async () => {
+  const makeStorage = () => {
+    const values = new Map();
+    return {
+      getItem: key => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+      removeItem: key => values.delete(key),
+    };
+  };
+  global.localStorage = makeStorage();
+  global.sessionStorage = makeStorage();
+  global.localStorage.setItem("access_token", "expired-access-token");
+  global.localStorage.setItem("user_id", "customer-1");
+  global.window = { dispatchEvent: () => {} };
+  const requests = [];
+  global.fetch = async input => {
+    const url = new URL(input.url);
+    requests.push({ path: url.pathname, authorization: input.headers.get("Authorization"), credentials: input.credentials });
+    if (url.pathname === "/users/refresh-login") {
+      return new Response(JSON.stringify({ access_token: "fresh-access-token" }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (input.headers.get("Authorization") === "Bearer fresh-access-token") {
+      return new Response(JSON.stringify({ id: "customer-1" }), { headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ message: "Restricted area! you must login first" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    const user = await store().dispatch(api.endpoints.getUserById.initiate("customer-1")).unwrap();
+    assert.equal(user.id, "customer-1");
+    assert.deepEqual(requests.map(request => request.path), ["/users/customer-1", "/users/refresh-login", "/users/customer-1"]);
+    assert.equal(requests[1].credentials, "include");
+    assert.equal(global.localStorage.getItem("access_token"), "fresh-access-token");
+    assert.equal(requests[2].authorization, "Bearer fresh-access-token");
+  } finally {
+    delete global.localStorage;
+    delete global.sessionStorage;
+    delete global.window;
+  }
+});
+
 test("plain-text forgot-password success is accepted by the actual API endpoint", async () => {
   global.fetch = async () => new Response("We sent you an email containing details to reset your password", { status: 201, headers: { "Content-Type": "text/html; charset=utf-8" } });
   const response = await store().dispatch(api.endpoints.forgotPassword.initiate({ email: "customer@example.test" })).unwrap();
@@ -115,4 +156,69 @@ test("the real forgot-password submit handler only shows email sent after confir
   const result = await submitForgot({ data: "Reset email accepted" });
   assert.deepEqual(result.notification, { type: "success", message: "Reset email accepted" });
   assert.equal(result.isSubmitting, false);
+});
+
+test("login redirects unverified users to email verification without storing their tokens", async () => {
+  const values = new Map();
+  global.localStorage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key),
+  };
+  global.sessionStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  };
+  global.window = {
+    location: { origin: "https://example.test", search: "" },
+    dispatchEvent: () => {},
+  };
+  const states = [];
+  const routes = [];
+  const resendCalls = [];
+  const user = { id: "unverified-user", email: "pending@example.test", isEmailVerified: false, userType: "CUSTOMER" };
+  const trigger = () => ({ unwrap: async () => ({ user, access_token: "do-not-store", refresh_token: "do-not-store-either" }) });
+  const resend = ({ id }) => {
+    resendCalls.push(id);
+    return { unwrap: async () => ({ id }) };
+  };
+  const stubs = new Map([
+    ["react", { ...require("react"), useState: initial => { const index = states.push(initial === true ? false : initial) - 1; return [states[index], value => { states[index] = typeof value === "function" ? value(states[index]) : value; }]; }, useEffect: () => {} }],
+    ["react-hook-form", { useForm: () => ({ register: () => ({}), handleSubmit: handler => handler, formState: { errors: {} } }) }],
+    ["next/navigation", { useRouter: () => ({ replace: route => routes.push(route) }) }],
+    ["next/image", () => null],
+    ["next/link", () => null],
+    ["lucide-react", { Eye: () => null, EyeOff: () => null, Lock: () => null, Mail: () => null, Loader2: () => null }],
+    [path.join(root, "redux/services/authApi.ts"), {
+      useLoginMutation: () => [trigger, { isLoading: false, error: null }],
+      useRefreshTokenMutation: () => [() => {}, { isLoading: false }],
+      useResendVerificationMutation: () => [resend, { isLoading: false }],
+      UserType: { CUSTOMER: "CUSTOMER", ADMIN: "ADMIN", STAFF: "STAFF", SERVICE_PROVIDER: "SERVICE_PROVIDER" },
+      ServiceType: { CATERING: "CATERING" },
+    }],
+    [path.join(root, "components/ui/Notification.tsx"), () => null],
+    [path.join(root, "hooks/getApiError.ts"), { getApiError }],
+    [path.join(root, "lib/bookmark-state.ts"), { persistBookmarkState: () => {} }],
+    [path.join(root, "lib/current-user.ts"), { currentUserSnapshot: () => "" }],
+  ]);
+  const Page = sourceLoader(stubs)("app/(auth)/login/page.tsx").default;
+  const tree = Page();
+  function findForm(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "form") return node;
+    for (const child of [node.props?.children].flat(Infinity)) {
+      const found = findForm(child);
+      if (found) return found;
+    }
+  }
+  await findForm(tree).props.onSubmit({ email: user.email, password: "password", rememberMe: false });
+  assert.deepEqual(resendCalls, [user.id]);
+  assert.deepEqual(routes, [`/verify-email?email=${encodeURIComponent(user.email)}`]);
+  assert.equal(localStorage.getItem("userId"), user.id);
+  assert.equal(localStorage.getItem("access_token"), null);
+  assert.equal(localStorage.getItem("refresh_token"), null);
+  delete global.localStorage;
+  delete global.sessionStorage;
+  delete global.window;
 });

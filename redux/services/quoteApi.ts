@@ -1,5 +1,5 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { API_BASE_URL } from "./apiConfig";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQueryWithReauth";
 
 export interface BillingAddress {
   street: string;
@@ -143,18 +143,7 @@ export interface GetInvoicesResponse {
 
 export const quoteApi = createApi({
   reducerPath: "quoteApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
-    prepareHeaders: (headers) => {
-      const accessToken =
-        localStorage.getItem("access_token") ||
-        sessionStorage.getItem("access_token");
-      if (accessToken) {
-        headers.set("Authorization", `Bearer ${accessToken}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   endpoints: (builder) => ({
     requestQuote: builder.mutation<RequestQuoteResponse, RequestQuotePayload>({
       query: (payload) => ({

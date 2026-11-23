@@ -138,7 +138,7 @@ const Card: React.FC<CardProps> = ({
           )}
           {depositPercentage !== undefined && (
             <div className="flex justify-between items-center text-gray-700">
-              <span className="font-medium">Deposit percentage:</span>
+              <span className="font-medium">(%) Deposit percentage:</span>
               <span className="font-semibold text-gray-900">
                 {depositPercentage}%
               </span>
