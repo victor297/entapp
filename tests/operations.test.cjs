@@ -129,7 +129,7 @@ test("invoice outstanding amounts use only real invoice-payment debits and serve
 });
 
 test("quote details retain numeric budgets and requirements without inventing accepted statuses", () => {
-  const { parseQuoteDetails, formatQuoteBudget, quoteStatus } = loadSource("lib/quote-details.ts");
+  const { parseQuoteDetails, formatQuoteBudget, quoteStatus, filterOwnedQuotes } = loadSource("lib/quote-details.ts");
   const details = { version: 1, minBudget: 100000, maxBudget: 200000, currency: "NGN", eventDate: "2026-12-01", guests: 100, eventType: "WEDDING", menu: "Vegetarian", dietary: "Vegan", allergies: "Peanuts", drinks: "Juice", staffing: "4 servers", equipment: "Tables", notes: "Outdoor" };
   assert.deepEqual(parseQuoteDetails(JSON.stringify(details)), details);
   assert.equal(parseQuoteDetails("Older free text note"), null);
@@ -137,10 +137,63 @@ test("quote details retain numeric budgets and requirements without inventing ac
   assert.equal(formatQuoteBudget("100000-200000"), "100000 – 200000 NGN");
   assert.equal(formatQuoteBudget("Negotiable"), "Negotiable");
   assert.equal(quoteStatus("GENERATED"), "Quote requested");
+  const providerQuotes = [
+    { id: "catering-quote", serviceProvider: "provider-1", serviceType: "CATERING" },
+    { id: "event-quote", serviceProvider: "provider-1", serviceType: "EVENTCENTER" },
+    { id: "other-provider-quote", serviceProvider: "provider-2", serviceType: "CATERING" },
+  ];
+  assert.deepEqual(filterOwnedQuotes(providerQuotes, "provider", "", "provider-1").map(row => row.id), ["catering-quote", "event-quote"]);
+  assert.deepEqual(filterOwnedQuotes(providerQuotes, "customer", "customer-1", "provider-1"), []);
+  const customerQuotes = [{ id: "customer-quote", customerId: "customer-1" }, { id: "other-customer-quote", customerId: "customer-2" }];
+  assert.deepEqual(filterOwnedQuotes(customerQuotes, "customer", "customer-1", "").map(row => row.id), ["customer-quote"]);
   const quotesPage = fs.readFileSync(path.join(root, "components/operations/QuotesPage.tsx"), "utf8");
-  assert.match(quotesPage, /activeRole === "provider" \? \{ serviceProvider: userId \} : \{ customerId: userId \}/);
-  assert.match(quotesPage, /row\.customerId === userId/);
+  assert.match(quotesPage, /activeRole === "provider" \? \{ serviceProvider: providerId \} : \{ customerId: userId \}/);
   assert.doesNotMatch(quotesPage, /knownQuoteIds/);
+});
+
+test("weekly availability generates inclusive weekday slots and enforces the six-month limit", () => {
+  const { addCalendarMonths, generateWeeklySlots } = loadSource("lib/time-slot-schedule.ts");
+  assert.equal(addCalendarMonths("2030-01-31", 6), "2030-07-31");
+  const days = {
+    1: { enabled: true, start: "09:00", end: "12:00" },
+    2: { enabled: false, start: "09:00", end: "17:00" },
+    3: { enabled: true, start: "10:00", end: "13:00" },
+    4: { enabled: false, start: "09:00", end: "17:00" },
+    5: { enabled: false, start: "09:00", end: "17:00" },
+    6: { enabled: false, start: "09:00", end: "17:00" },
+    0: { enabled: false, start: "09:00", end: "17:00" },
+  };
+  const slots = generateWeeklySlots({
+    startDate: "2030-01-07",
+    endDate: "2030-01-13",
+    days,
+    sharedHours: { start: "09:00", end: "12:00" },
+    useSharedHours: true,
+    slotDurationMinutes: 60,
+    gapMinutes: 30,
+  });
+  assert.equal(slots.length, 4);
+  assert.deepEqual(slots.map(slot => [new Date(slot.startTime).getDay(), new Date(slot.startTime).getHours(), new Date(slot.endTime).getHours()]), [
+    [1, 9, 10], [1, 10, 11], [3, 9, 10], [3, 10, 11],
+  ]);
+  assert.throws(() => generateWeeklySlots({
+    startDate: "2030-01-31",
+    endDate: "2030-08-01",
+    days,
+    sharedHours: { start: "09:00", end: "12:00" },
+    useSharedHours: true,
+    slotDurationMinutes: 60,
+    gapMinutes: 0,
+  }), /six months/);
+  assert.throws(() => generateWeeklySlots({
+    startDate: "2030-01-07",
+    endDate: "2030-01-13",
+    days: { ...days, 1: { ...days[1], start: "09:00", end: "09:30" } },
+    sharedHours: { start: "09:00", end: "09:30" },
+    useSharedHours: true,
+    slotDurationMinutes: 60,
+    gapMinutes: 0,
+  }), /shorter than one slot/);
 });
 
 test("current-user snapshots persist identity fields without passwords or session tokens", () => {

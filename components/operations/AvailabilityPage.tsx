@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   useOperationListQuery,
@@ -15,8 +15,20 @@ import {
   Workspace,
 } from "./Workspace";
 import type { ApiRecord } from "@/lib/operations";
+import {
+  addCalendarMonths,
+  findOverlappingSlots,
+  generateWeeklySlots,
+  WEEKDAYS,
+  type DayAvailability,
+} from "@/lib/time-slot-schedule";
 
 type ServiceListing = ApiRecord & { type: "EVENTCENTER" | "CATERING" };
+
+function currentLocalDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
 
 export default function AvailabilityPage({
   initialServiceId = "",
@@ -31,6 +43,16 @@ export default function AvailabilityPage({
   const [editing, setEditing] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [createMode, setCreateMode] = useState<"single" | "weekly">("weekly");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [useSharedHours, setUseSharedHours] = useState(true);
+  const [sharedHours, setSharedHours] = useState({ start: "09:00", end: "17:00" });
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(60);
+  const [gapMinutes, setGapMinutes] = useState(0);
+  const [days, setDays] = useState<Record<number, DayAvailability>>(
+    Object.fromEntries(WEEKDAYS.map(({ day }) => [day, { enabled: false, start: "09:00", end: "17:00" }]))
+  );
   const [error, setError] = useState<unknown>();
   const [notice, setNotice] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<ApiRecord | null>(null);
@@ -69,6 +91,23 @@ export default function AvailabilityPage({
   );
   const [mutate, action] = useOperationMutationMutation();
   const visibleSlots = (slots.data || []).filter((slot) => !slot.deletedAt);
+  const latestPeriodDate = periodStart ? addCalendarMonths(periodStart, 6) : "";
+  const generatedSlots = useMemo(() => {
+    if (!periodStart || !periodEnd) return [];
+    try {
+      return generateWeeklySlots({
+        startDate: periodStart,
+        endDate: periodEnd,
+        days,
+        sharedHours,
+        useSharedHours,
+        slotDurationMinutes,
+        gapMinutes,
+      });
+    } catch {
+      return [];
+    }
+  }, [periodStart, periodEnd, days, sharedHours, useSharedHours, slotDurationMinutes, gapMinutes]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -76,6 +115,43 @@ export default function AvailabilityPage({
     setNotice("");
 
     try {
+      if (!service) throw new Error("Select a listing you own.");
+      if (!editing && createMode === "weekly") {
+        const toCreate = generateWeeklySlots({
+          startDate: periodStart,
+          endDate: periodEnd,
+          days,
+          sharedHours,
+          useSharedHours,
+          slotDurationMinutes,
+          gapMinutes,
+        });
+        const existingSlots = (slots.data || []).map((slot) => ({
+          startTime: String(slot.startTime),
+          endTime: String(slot.endTime),
+          deletedAt: typeof slot.deletedAt === "string" ? slot.deletedAt : null,
+        }));
+        const overlaps = findOverlappingSlots(toCreate, existingSlots);
+        if (overlaps.length) {
+          throw new Error(`${overlaps.length} generated slot${overlaps.length === 1 ? "" : "s"} overlap existing availability. Change the schedule or remove the conflicting slots first.`);
+        }
+        await mutate({
+          url: "/timeslot",
+          method: "POST",
+          body: {
+            serviceId,
+            serviceType: service.type,
+            createdBy: userId,
+            slots: toCreate,
+          },
+        }).unwrap();
+        await slots.refetch();
+        setPeriodStart("");
+        setPeriodEnd("");
+        setNotice(`${toCreate.length} time slot${toCreate.length === 1 ? "" : "s"} created.`);
+        return;
+      }
+
       const startTime = new Date(start).toISOString();
       const endTime = new Date(end).toISOString();
       if (
@@ -86,7 +162,6 @@ export default function AvailabilityPage({
           "Choose a future start and an end after the start.",
         );
       }
-      if (!service) throw new Error("Select a listing you own.");
       if (
         (slots.data || []).some(
           (slot) =>
@@ -161,8 +236,8 @@ export default function AvailabilityPage({
   return (
     <Workspace role="provider" title="Create and manage time slots">
       <p className="mb-5 text-gray-600">
-        Choose a listing, set a start and end time, then save to make a slot
-        available for booking.
+        Choose a listing to create a weekly schedule for a date range or add a
+        single slot. Weekly schedules can cover up to six months.
       </p>
 
       {(venues.error || catering.error) && (
@@ -209,6 +284,8 @@ export default function AvailabilityPage({
                 setEditing("");
                 setStart("");
                 setEnd("");
+                setPeriodStart("");
+                setPeriodEnd("");
                 setError(undefined);
                 setNotice("");
               }}
@@ -226,7 +303,14 @@ export default function AvailabilityPage({
 
       {service && (
         <>
-          <form
+          {!editing && (
+            <div className="my-6 flex flex-wrap gap-2" aria-label="Availability creation mode">
+              <button type="button" className={`${createMode === "weekly" ? buttonClass : "rounded-lg border px-4 py-2.5 text-sm"}`} onClick={() => { setCreateMode("weekly"); setError(undefined); setNotice(""); }}>Weekly schedule</button>
+              <button type="button" className={`${createMode === "single" ? buttonClass : "rounded-lg border px-4 py-2.5 text-sm"}`} onClick={() => { setCreateMode("single"); setError(undefined); setNotice(""); }}>Single slot</button>
+            </div>
+          )}
+
+          {(editing || createMode === "single") && <form
             className="my-6 grid gap-4 rounded-xl border bg-white p-6 sm:grid-cols-2"
             onSubmit={submit}
           >
@@ -281,7 +365,59 @@ export default function AvailabilityPage({
                 </button>
               )}
             </div>
-          </form>
+          </form>}
+
+          {!editing && createMode === "weekly" && <form className="my-6 space-y-5 rounded-xl border bg-white p-6" onSubmit={submit}>
+            <div>
+              <h2 className="text-xl font-semibold">Create a weekly availability schedule</h2>
+              <p className="mt-1 text-sm text-gray-600">Choose a date range (up to six months), select the days and hours you’re available, and we’ll create the individual slots.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label>Start date
+                <input required type="date" className={fieldClass} value={periodStart} min={currentLocalDate()} onChange={(event) => {
+                  const value = event.target.value;
+                  setPeriodStart(value);
+                  if (periodEnd && value && periodEnd > addCalendarMonths(value, 6)) setPeriodEnd("");
+                }} />
+              </label>
+              <label>End date (inclusive)
+                <input required type="date" className={fieldClass} value={periodEnd} min={periodStart || undefined} max={latestPeriodDate || undefined} onChange={(event) => setPeriodEnd(event.target.value)} />
+              </label>
+            </div>
+            <fieldset>
+              <legend className="mb-2 font-semibold">Hours for selected days</legend>
+              <div className="flex flex-wrap gap-5">
+                <label className="flex items-center gap-2"><input type="radio" name="hours-mode" checked={useSharedHours} onChange={() => setUseSharedHours(true)} /> Same hours for all selected days</label>
+                <label className="flex items-center gap-2"><input type="radio" name="hours-mode" checked={!useSharedHours} onChange={() => setUseSharedHours(false)} /> Different hours for each day</label>
+              </div>
+            </fieldset>
+            {useSharedHours && <div className="grid gap-4 sm:grid-cols-2">
+              <label>Daily start time<input required type="time" className={fieldClass} value={sharedHours.start} onChange={(event) => setSharedHours({ ...sharedHours, start: event.target.value })} /></label>
+              <label>Daily end time<input required type="time" className={fieldClass} value={sharedHours.end} onChange={(event) => setSharedHours({ ...sharedHours, end: event.target.value })} /></label>
+            </div>}
+            <fieldset className="space-y-3">
+              <legend className="mb-2 font-semibold">Available days</legend>
+              {WEEKDAYS.map(({ label, day }) => <div key={day} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(150px,1fr)_1fr_1fr] sm:items-center">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={days[day].enabled} onChange={(event) => setDays({ ...days, [day]: { ...days[day], enabled: event.target.checked } })} />{label}</label>
+                {!useSharedHours && <>
+                  <label className="text-sm">From<input disabled={!days[day].enabled} type="time" className={fieldClass} value={days[day].start} onChange={(event) => setDays({ ...days, [day]: { ...days[day], start: event.target.value } })} /></label>
+                  <label className="text-sm">To<input disabled={!days[day].enabled} type="time" className={fieldClass} value={days[day].end} onChange={(event) => setDays({ ...days, [day]: { ...days[day], end: event.target.value } })} /></label>
+                </>}
+              </div>)}
+            </fieldset>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label>Slot length (minutes)<input required type="number" min="1" step="1" className={fieldClass} value={slotDurationMinutes} onChange={(event) => setSlotDurationMinutes(Number(event.target.value))} /></label>
+              <label>Gap between slots (minutes)<input required type="number" min="0" step="1" className={fieldClass} value={gapMinutes} onChange={(event) => setGapMinutes(Number(event.target.value))} /></label>
+            </div>
+            <p className="text-sm text-gray-600" aria-live="polite">
+              {generatedSlots.length
+                ? `${generatedSlots.length} slot${generatedSlots.length === 1 ? "" : "s"} will be created.`
+                : "Select your dates, days, and valid hours to preview the number of slots."}
+            </p>
+            <button className={buttonClass} disabled={action.isLoading || slots.isFetching || Boolean(slots.error) || generatedSlots.length === 0}>
+              {action.isLoading ? "Creating slots…" : "Create weekly availability"}
+            </button>
+          </form>}
 
           {Boolean(error) && <ApiError error={error} />}
           {notice && <Message>{notice}</Message>}
