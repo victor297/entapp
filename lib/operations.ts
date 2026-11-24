@@ -24,6 +24,27 @@ export function paymentStatus(value: unknown) {
   const status = String(value || "UNKNOWN").toUpperCase();
   return ({ PAID: "Paid", PARTIALLY_PAID: "Deposit / partial payment received", UNPAID: "Unpaid", PENDING: "Pending payment", GENERATED: "Awaiting payment", OVERDUE: "Overdue", OVER_PAID: "Overpaid" } as Record<string,string>)[status] ?? status.replaceAll("_", " ");
 }
+export function bookingPaymentSummary(booking: ApiRecord, invoices: ApiRecord[]) {
+  const total = Number(booking.total);
+  const paidInvoices = invoices.filter(invoice => ["PAID", "OVER_PAID"].includes(String(invoice.status).toUpperCase()));
+  const amountPaid = paidInvoices.reduce((sum, invoice) => sum + Number(invoice.amountDue || 0), 0);
+  const hasPartialInvoice = invoices.some(invoice => String(invoice.status).toUpperCase() === "PARTIALLY_PAID");
+  const allInvoicesPaid = invoices.length > 0 && paidInvoices.length === invoices.length;
+  const paymentStatus = Number.isFinite(total) && invoices.length > 0
+    ? amountPaid >= total
+      ? "PAID"
+      : amountPaid > 0 || hasPartialInvoice
+        ? "PARTIALLY_PAID"
+        : booking.paymentStatus
+    : booking.paymentStatus;
+
+  return {
+    paymentStatus,
+    amountPaid,
+    balance: Number.isFinite(total) ? Math.max(0, total - amountPaid) : 0,
+    allInvoicesPaid,
+  };
+}
 export function filterRecords(rows: ApiRecord[], filters: { search?: string; status?: string; serviceId?: string; start?: string; end?: string; serviceType?: string }) {
   return rows.filter(row => {
     const text = [row.reference, row.bookingReference, row.quoteReference, row.serviceName, row.name, row.reason, row.description, row.note, row.id, row.customerId].filter(Boolean).join(" ").toLowerCase();

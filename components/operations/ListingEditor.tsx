@@ -351,7 +351,12 @@ export default function ListingEditor({
           {field("postal", "Postal code")}
           {field("contact", "Contact telephone", "tel", false)}
           {venue ? (
-            field("venueLayout", "Venue layout", "text", false)
+            <div>
+              {field("venueLayout", "Venue layout", "text", false)}
+              <p className="mt-1 text-sm text-gray-500">
+                Examples: Banquet style, theatre style, classroom style, etc.
+              </p>
+            </div>
           ) : (
             <>
               <div>

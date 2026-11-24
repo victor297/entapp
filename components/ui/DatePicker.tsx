@@ -119,15 +119,28 @@ const DatePicker: React.FC<DatePickerProps> = ({
       : null;
   const { user: currentUser } = useCurrentUser();
   const feeSettings = useOperationRecordQuery("/admin/app-settings", {
-    skip: !isOpen || currentUser?.userType !== "ADMIN",
+    skip: !isOpen,
   });
   const policyListing = useOperationRecordQuery(
     `/${serviceType === "CATERING" ? "catering" : "event-centers"}/${serviceId}`,
     { skip: !isOpen },
   );
-  const serviceCharge =
-    feeSettings.data?.serviceCharge !== undefined
+  const configuredServiceCharge =
+    feeSettings.data?.serviceCharge !== undefined &&
+    feeSettings.data.serviceCharge !== null
       ? Number(feeSettings.data.serviceCharge)
+      : null;
+  const hasConfiguredServiceCharge =
+    configuredServiceCharge !== null &&
+    Number.isFinite(configuredServiceCharge);
+  const isServiceChargeResolved =
+    feeSettings.isError || feeSettings.isSuccess;
+  const serviceFeeNotIncluded =
+    isServiceChargeResolved && !hasConfiguredServiceCharge;
+  const serviceCharge = hasConfiguredServiceCharge
+    ? configuredServiceCharge
+    : serviceFeeNotIncluded
+      ? 1500
       : null;
 
   const allSlots = useOperationListQuery(
@@ -284,9 +297,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
   const handleConfirmBooking = async () => {
     try {
-      if (serviceCharge === null || !Number.isFinite(serviceCharge)) {
+      if (!isServiceChargeResolved || serviceCharge === null) {
         setBookingError(
-          "The configured service fee is currently unavailable, so this booking cannot be confirmed. Please request a quote or contact the provider.",
+          "Please wait for the service fee lookup to finish before confirming this booking.",
         );
         return;
       }
@@ -1051,6 +1064,13 @@ const DatePicker: React.FC<DatePickerProps> = ({
                     <span>₦{subTotal.toLocaleString()}</span>
                   </div>
 
+                  {serviceFeeNotIncluded && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>Platform service fee:</span>
+                      <span>Not included</span>
+                    </div>
+                  )}
+
                   {discount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Discount ({discountPercentage}%):</span>
@@ -1060,7 +1080,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
                   <div className="flex justify-between font-medium border-t pt-2 mt-2">
                     <span>
-                      {serviceCharge === null
+                      {serviceFeeNotIncluded || serviceCharge === null
                         ? "Estimate before platform fee:"
                         : "Total Amount:"}
                     </span>
@@ -1222,11 +1242,11 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   An exact refund preview is not currently available. Any refund
                   needs confirmation under the provider&apos;s policy.
                 </p>
-                {serviceCharge === null && (
+                {serviceFeeNotIncluded && (
                   <p role="alert" className="mt-3 font-medium text-red-800">
-                    The configured service fee is unavailable, so this booking
-                    cannot be confirmed. You can close this panel and request a
-                    quote.
+                    The platform service fee could not be retrieved and is not
+                    included in this booking estimate. The booking may be
+                    rejected if a service fee is required.
                   </p>
                 )}
                 {allSlots.error && (
@@ -1250,6 +1270,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   onClick={handleConfirmBooking}
                   disabled={
                     isBookingLoading ||
+                    !isServiceChargeResolved ||
                     serviceCharge === null ||
                     bookingError === "This time slot is already selected." ||
                     isAmountBelowStripeMinimum ||

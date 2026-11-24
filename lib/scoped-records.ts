@@ -1,4 +1,4 @@
-import { recordPage, type ApiRecord } from "./operations";
+import { bookingPaymentSummary, recordPage, type ApiRecord } from "./operations";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
 type Query = { url: string; params?: Record<string, string | number | undefined> } | string;
@@ -28,12 +28,21 @@ export async function fetchCustomerBookings(read: Read, userId: string) {
   // never fetch the platform-wide booking list to filter it in the browser.
   const invoices = await fetchScopedRecords(read, "/invoice", { userId });
   const ids = new Set(invoices.filter(row => row.userId === userId && row.bookingId).map(row => String(row.bookingId)));
+  const invoicesByBooking = new Map<string, ApiRecord[]>();
+  for (const invoice of invoices) {
+    if (invoice.userId !== userId || !invoice.bookingId) continue;
+    const bookingId = String(invoice.bookingId);
+    invoicesByBooking.set(bookingId, [...(invoicesByBooking.get(bookingId) ?? []), invoice]);
+  }
   const bookings: ApiRecord[] = [];
   for (const id of ids) {
     const result = await read(`/booking/${encodeURIComponent(id)}`);
     if (result.error) throw result.error;
     const booking = result.data as ApiRecord | undefined;
-    if (booking?.customerId === userId) bookings.push(booking);
+    if (booking?.customerId === userId) {
+      const summary = bookingPaymentSummary(booking, invoicesByBooking.get(id) ?? []);
+      bookings.push({ ...booking, paymentStatus: summary.paymentStatus });
+    }
   }
   return bookings;
 }

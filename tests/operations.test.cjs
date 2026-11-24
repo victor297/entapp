@@ -43,7 +43,7 @@ global.fetch = async input => {
 after(() => { global.fetch = originalFetch; delete global.window; delete global.localStorage; delete global.sessionStorage; });
 
 const { operationsApi } = loadSource("redux/services/operationsApi.ts");
-const { filterRecords, recordPage, money, bookingStatus } = loadSource("lib/operations.ts");
+const { bookingPaymentSummary, filterRecords, recordPage, money, bookingStatus } = loadSource("lib/operations.ts");
 function store() { requests.length = 0; return configureStore({ reducer: { [operationsApi.reducerPath]: operationsApi.reducer }, middleware: getDefault => getDefault().concat(operationsApi.middleware) }); }
 async function query(app, endpoint, args) { const request = app.dispatch(operationsApi.endpoints[endpoint].initiate(args)); try { return await request.unwrap(); } finally { request.unsubscribe(); app.dispatch(operationsApi.util.resetApiState()); } }
 
@@ -126,6 +126,19 @@ test("invoice outstanding amounts use only real invoice-payment debits and serve
   assert.equal(money(undefined), "Unavailable");
   assert.equal(bookingStatus("COMPLETED"), "Completed");
   assert.equal(bookingStatus("PAID"), "PAID");
+});
+
+test("booking payment summaries use paid invoice totals when the booking payment status is stale", () => {
+  const booking = { total: 49500, paymentStatus: "GENERATED" };
+  const paidDeposit = [{ id: "invoice-1", amountDue: 6300, status: "PAID" }];
+  assert.deepEqual(bookingPaymentSummary(booking, paidDeposit), {
+    paymentStatus: "PARTIALLY_PAID",
+    amountPaid: 6300,
+    balance: 43200,
+    allInvoicesPaid: true,
+  });
+  assert.equal(bookingPaymentSummary({ total: 25500, paymentStatus: "GENERATED" }, [{ amountDue: 25500, status: "PAID" }]).paymentStatus, "PAID");
+  assert.equal(bookingPaymentSummary(booking, [{ amountDue: 6300, status: "PENDING" }]).paymentStatus, "GENERATED");
 });
 
 test("quote details retain numeric budgets and requirements without inventing accepted statuses", () => {
