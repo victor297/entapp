@@ -4,7 +4,7 @@ import { CalendarDays, X, Plus, Trash2, CheckCircle } from "lucide-react";
 import { useCreateBookingMutation } from "@/redux/services/book";
 import { getApiError } from "@/hooks/getApiError";
 
-interface Quote {
+export interface InvoicePreparationQuote {
   id: string;
   customerId: string;
   serviceId: string;
@@ -22,12 +22,24 @@ interface Quote {
   source: "WEB" | "MOBILE" | string;
   customerNotes: string;
   timeslotIds: string[];
+  requestedTimeSlots: { startTime: string; endTime: string }[];
+  eventDetails?: {
+    eventName: string;
+    eventType: string;
+    eventTheme?: string;
+    noOfGuest: number;
+    description?: string;
+    cuisine?: string;
+    dishTypes?: string;
+    dietaryRequirements?: string;
+    specialRequests?: string;
+  } | null;
 }
 
 interface GenerateInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialQuote: Quote;
+  initialQuote: InvoicePreparationQuote;
   timeslotIds: string[];
 }
 
@@ -53,17 +65,18 @@ export default function GenerateInvoiceModal({
     total: 0,
     dueDate: "",
     serviceNotes: "",
-    eventName: "",
-    eventTheme: "",
-    description: "",
-    noOfGuest: 0,
+    eventName: initialQuote.eventDetails?.eventName || "",
+    eventTheme: initialQuote.eventDetails?.eventTheme || "",
+    eventType: initialQuote.eventDetails?.eventType || "",
+    description: initialQuote.eventDetails?.description || "",
+    noOfGuest: initialQuote.eventDetails?.noOfGuest || 0,
   });
 
   // Calculate totals whenever items or discount changes
   useEffect(() => {
     const subTotal = items.reduce((sum, item) => sum + (item.amount || 0), 0);
     const total = parseFloat(
-      (subTotal - (subTotal * (formData.discount || 0)) / 100).toFixed(2)
+      (subTotal - (subTotal * (formData.discount || 0)) / 100).toFixed(2),
     );
     setFormData((prev) => ({
       ...prev,
@@ -75,7 +88,7 @@ export default function GenerateInvoiceModal({
   const handleItemChange = (
     index: number,
     field: string,
-    value: string | number
+    value: string | number,
   ) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
@@ -96,13 +109,27 @@ export default function GenerateInvoiceModal({
     setSpecialRequirements((prev) =>
       prev.includes(requirement)
         ? prev.filter((r) => r !== requirement)
-        : [...prev, requirement]
+        : [...prev, requirement],
     );
   };
 
   const handleSubmit = async () => {
     try {
-        const bookingData = {
+      const eventDetailsNotes = [
+        initialQuote.eventDetails?.eventTheme &&
+          `Event theme: ${initialQuote.eventDetails.eventTheme}`,
+        initialQuote.eventDetails?.cuisine &&
+          `Cuisine preference: ${initialQuote.eventDetails.cuisine}`,
+        initialQuote.eventDetails?.dishTypes &&
+          `Requested dishes: ${initialQuote.eventDetails.dishTypes}`,
+        initialQuote.eventDetails?.dietaryRequirements &&
+          `Dietary needs or allergies: ${initialQuote.eventDetails.dietaryRequirements}`,
+        initialQuote.eventDetails?.specialRequests &&
+          `Special requests: ${initialQuote.eventDetails.specialRequests}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const bookingData = {
         customerId: initialQuote.customerId,
         requestQuoteId: initialQuote.id,
         amountDue: formData.total,
@@ -120,12 +147,21 @@ export default function GenerateInvoiceModal({
         isLiabilityWaiverSigned: initialQuote.isLiabilityWaiverSigned,
         source: initialQuote.source,
         serviceNotes: formData.serviceNotes,
-        customerNotes: initialQuote.customerNotes,
+        customerNotes: [initialQuote.customerNotes, eventDetailsNotes]
+          .filter(Boolean)
+          .join("\n\n"),
         eventName: formData.eventName,
+        serviceCharge: 1500,
         eventTheme: formData.eventTheme,
-        eventType: initialQuote.serviceType,
+        eventType: formData.eventType,
         description: formData.description,
         noOfGuest: formData.noOfGuest,
+        cuisine: initialQuote.eventDetails?.cuisine
+          ? [initialQuote.eventDetails.cuisine]
+          : undefined,
+        dishTypes: initialQuote.eventDetails?.dishTypes
+          ? [initialQuote.eventDetails.dishTypes]
+          : undefined,
         specialRequirements,
       };
 
@@ -190,7 +226,7 @@ export default function GenerateInvoiceModal({
                         handleItemChange(
                           index,
                           "amount",
-                          parseFloat(e.target.value) || 0
+                          parseFloat(e.target.value) || 0,
                         )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-400"
@@ -250,8 +286,90 @@ export default function GenerateInvoiceModal({
           {/* Event Details */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Event Details
+              Customer-provided event details
             </h3>
+            {initialQuote.eventDetails ? (
+              <dl className="mb-5 grid gap-3 rounded-lg bg-blue-50 p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="font-semibold">Event name</dt>
+                  <dd>{initialQuote.eventDetails.eventName}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">Event type</dt>
+                  <dd>{initialQuote.eventDetails.eventType}</dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">Expected guests</dt>
+                  <dd>{initialQuote.eventDetails.noOfGuest}</dd>
+                </div>
+                {initialQuote.eventDetails.eventTheme && (
+                  <div>
+                    <dt className="font-semibold">Theme</dt>
+                    <dd>{initialQuote.eventDetails.eventTheme}</dd>
+                  </div>
+                )}
+                {initialQuote.eventDetails.cuisine && (
+                  <div>
+                    <dt className="font-semibold">Cuisine</dt>
+                    <dd>{initialQuote.eventDetails.cuisine}</dd>
+                  </div>
+                )}
+                {initialQuote.eventDetails.dishTypes && (
+                  <div>
+                    <dt className="font-semibold">Requested dishes</dt>
+                    <dd>{initialQuote.eventDetails.dishTypes}</dd>
+                  </div>
+                )}
+                {initialQuote.eventDetails.dietaryRequirements && (
+                  <div className="sm:col-span-2">
+                    <dt className="font-semibold">
+                      Dietary needs or allergies
+                    </dt>
+                    <dd className="whitespace-pre-wrap">
+                      {initialQuote.eventDetails.dietaryRequirements}
+                    </dd>
+                  </div>
+                )}
+                {initialQuote.eventDetails.description && (
+                  <div className="sm:col-span-2">
+                    <dt className="font-semibold">Description</dt>
+                    <dd className="whitespace-pre-wrap">
+                      {initialQuote.eventDetails.description}
+                    </dd>
+                  </div>
+                )}
+                {initialQuote.eventDetails.specialRequests && (
+                  <div className="sm:col-span-2">
+                    <dt className="font-semibold">Special requests</dt>
+                    <dd className="whitespace-pre-wrap">
+                      {initialQuote.eventDetails.specialRequests}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            ) : (
+              <p className="mb-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+                This is an older quote and does not include structured event
+                details. Ask the customer for any missing requirements before
+                preparing the invoice.
+              </p>
+            )}
+            <div className="mb-5 rounded-lg border p-4">
+              <h4 className="mb-2 font-semibold">
+                Customer-requested time slots
+              </h4>
+              <ul className="list-inside list-disc text-sm">
+                {initialQuote.requestedTimeSlots.map((slot, index) => (
+                  <li key={`${slot.startTime}-${index}`}>
+                    {new Date(slot.startTime).toLocaleString("en-GB")} –{" "}
+                    {new Date(slot.endTime).toLocaleTimeString("en-GB", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -303,6 +421,23 @@ export default function GenerateInvoiceModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-400"
                   placeholder="Number of guests"
                   min="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event Type / Occasion
+                </label>
+                <input
+                  type="text"
+                  value={formData.eventType}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      eventType: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-400"
+                  placeholder="Event type or occasion"
                 />
               </div>
               <div className="relative">
@@ -394,26 +529,26 @@ export default function GenerateInvoiceModal({
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span className="font-medium">
-                  ${formData.subTotal.toFixed(2)}
+                  NGN {formData.subTotal.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Discount ({formData.discount}%):</span>
                 <span className="font-medium">
-                  -${((formData.subTotal * formData.discount) / 100).toFixed(2)}
+                  -NGN{" "}
+                  {((formData.subTotal * formData.discount) / 100).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-xl font-bold pt-2 border-t border-gray-200 mt-4">
                 <span>Total:</span>
-                <span>${formData.total.toFixed(2)}</span>
+                <span>NGN {formData.total.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {error && (
             <div className="text-red-600 text-sm">
-              Error:{" "}
-              {getApiError(error, "Failed to create booking")}
+              Error: {getApiError(error, "Failed to create booking")}
             </div>
           )}
         </div>

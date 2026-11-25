@@ -78,16 +78,21 @@ test("bare array endpoints paginate until their last page", async () => {
   assert.equal(rows.at(-1).id, "fee-200");
 });
 
-test("customer bookings follow only owned invoices and never request a global customer-filtered booking list", async () => {
+test("customer booking retrieval filters directly by customerId and includes bookings without invoices", async () => {
   respond = url => {
-    if (url.pathname === "/invoice") { assert.equal(url.searchParams.get("userId"), "customer-1"); return { count: 4, data: [{ id: "i1", userId: "customer-1", bookingId: "b1" }, { id: "i2", userId: "customer-1", bookingId: "b1" }, { id: "i3", userId: "customer-1", bookingId: "b2" }, { id: "i4", userId: "other-customer", bookingId: "private" }] }; }
-    if (url.pathname === "/booking/b1") return { id: "b1", customerId: "customer-1" };
-    if (url.pathname === "/booking/b2") return { id: "b2", customerId: "other-customer" };
-    throw new Error(`Unexpected data access: ${url}`);
+    assert.equal(url.pathname, "/booking");
+    assert.equal(url.searchParams.get("customerId"), "customer-1");
+    return { count: 3, data: [
+      { id: "b1", customerId: "customer-1" },
+      { id: "b2-no-invoice", customerId: "customer-1" },
+      { id: "private", customerId: "other-customer" },
+    ] };
   };
   const rows = await query(store(), "customerBookings", "customer-1");
-  assert.deepEqual(rows.map(row => row.id), ["b1"]);
-  assert.deepEqual(requests.map(row => row.url.pathname), ["/invoice", "/booking/b1", "/booking/b2"]);
+  assert.deepEqual(rows.map(row => row.id), ["b1", "b2-no-invoice"]);
+  assert.deepEqual(requests.map(row => row.url.pathname), ["/booking"]);
+  const gatewayService = fs.readFileSync(path.join(root, "banquetproapi/apps/apigateway/src/booking/booking.service.ts"), "utf8");
+  assert.match(gatewayService, /offset,\s*customerId,\s*serviceId,/);
 });
 
 test("provider invoices combine own subscription invoices and invoices from all provider bookings", async () => {
@@ -162,6 +167,34 @@ test("quote details retain numeric budgets and requirements without inventing ac
   const quotesPage = fs.readFileSync(path.join(root, "components/operations/QuotesPage.tsx"), "utf8");
   assert.match(quotesPage, /activeRole === "provider" \? \{ serviceProvider: providerId \} : \{ customerId: userId \}/);
   assert.doesNotMatch(quotesPage, /knownQuoteIds/);
+});
+
+test("customer quote event requirements are saved and carried into provider invoice preparation", () => {
+  const quoteForm = fs.readFileSync(path.join(root, "components/operations/QuoteRequestForm.tsx"), "utf8");
+  const invoiceForm = fs.readFileSync(path.join(root, "components/layouts/GenerateInvoiceModal.tsx"), "utf8");
+  const quoteService = fs.readFileSync(path.join(root, "banquetproapi/apps/booking/src/booking.service.ts"), "utf8");
+  const quoteSchema = fs.readFileSync(path.join(root, "banquetproapi/apps/booking/prisma/schema.prisma"), "utf8");
+  const quoteContract = fs.readFileSync(path.join(root, "banquetproapi/libs/contracts/src/booking/create-booking.dto.ts"), "utf8");
+  const { parseQuoteRequestNotes, serializeQuoteRequestNotes } = loadSource("lib/quote-details.ts");
+  const eventDetails = { eventName: "Ada's wedding", eventType: "Wedding", noOfGuest: 120, cuisine: "Nigerian" };
+  const savedNotes = serializeQuoteRequestNotes("Please include setup", eventDetails);
+  const parsedNotes = parseQuoteRequestNotes(savedNotes);
+  assert.equal(parsedNotes.message, "Please include setup");
+  assert.equal(parsedNotes.eventDetails.eventName, eventDetails.eventName);
+  assert.equal(parsedNotes.eventDetails.eventType, eventDetails.eventType);
+  assert.equal(parsedNotes.eventDetails.noOfGuest, eventDetails.noOfGuest);
+  assert.equal(parsedNotes.eventDetails.cuisine, eventDetails.cuisine);
+  assert.match(quoteForm, /customerNotes:\s*serializeQuoteRequestNotes/);
+  assert.match(quoteForm, /Expected guests/);
+  assert.match(quoteForm, /sittingCapacity/);
+  assert.doesNotMatch(quoteSchema, /eventDetails\s+Json\?/);
+  assert.doesNotMatch(quoteContract, /class RequestQuoteEventDetailsDto/);
+  assert.match(quoteContract, /customerNotes\?: string/);
+  assert.match(quoteService, /customerNotes: createRequestQuoteDto\.customerNotes/);
+  assert.match(invoiceForm, /Customer-provided event details/);
+  assert.match(invoiceForm, /Customer-requested time slots/);
+  assert.match(invoiceForm, /eventName:\s*formData\.eventName/);
+  assert.match(invoiceForm, /noOfGuest:\s*formData\.noOfGuest/);
 });
 
 test("weekly availability generates inclusive weekday slots and enforces the six-month limit", () => {

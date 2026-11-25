@@ -34,6 +34,8 @@ export interface CreateBookingRequest {
   eventType: string;
   description: string;
   noOfGuest: number;
+  cuisine?: string[];
+  dishTypes?: string[];
   specialRequirements: string[];
 }
 

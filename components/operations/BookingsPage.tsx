@@ -19,7 +19,7 @@ export default function BookingsPage({ role, serviceType }: { role: "admin" | "p
   const rows = filterRecords(owned, filters);
   return <Workspace role={role === "auto" ? "any" : role} title="Bookings">
     {role === "auto" && !activeRole && <Message error>Bookings are available to customers and service providers.</Message>}
-    {activeRole === "customer" && <Message>Bookings linked to your invoices appear here. If a recent booking is missing, open its confirmation link or contact the provider.</Message>}
+    {activeRole === "customer" && <Message>Your bookings appear here. If a recent booking is missing, open its confirmation link or contact the provider.</Message>}
     {activeRole === "provider" && <Link href={`/provider/manual-booking${serviceType ? `?serviceType=${serviceType}` : ""}`} className={`${buttonClass} mb-5`}>Create a booking</Link>}
     <RecordFilters rows={owned} filters={filters} onChange={next => { setFilters(next); setPage(1); }} statuses={["PENDING", "CONFIRMED", "RESERVED", "POSTPONED", "CANCELED", "COMPLETED"]} />
     {result.isFetching && <Message>Loading bookings…</Message>}
